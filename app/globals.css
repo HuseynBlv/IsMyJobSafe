@@ -1,0 +1,33 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* ─── IsMyJobSafe — Design System ─────────────────────────── */
+:root {
+  --background: #1c1c27;
+  --surface:    #23232f;
+  --border:     #2e2e3d;
+  --text-muted: #6b7280;
+}
+
+html,
+body {
+  background-color: var(--background);
+  color: #e8e8f0;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle radial glow behind hero */
+.hero-glow {
+  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+}
+
+/* Score ring colour helpers */
+.score-low    { color: #34d399; }  /* green  */
+.score-medium { color: #fbbf24; }  /* amber  */
+.score-high   { color: #f87171; }  /* red    */
+
+.ring-low     { stroke: #34d399; }
+.ring-medium  { stroke: #fbbf24; }
+.ring-high    { stroke: #f87171; }
