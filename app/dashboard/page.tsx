@@ -23,6 +23,14 @@ interface SimulationResult {
     tasks_at_risk: TaskItem[];
     tasks_safe: TaskItem[];
 }
+interface MarketComparisonResult {
+    percentile: number;
+    percentile_label: string;
+    summary: string;
+    strengths: Array<{ area: string; detail: string }>;
+    weaknesses: Array<{ area: string; detail: string }>;
+    positioning_advice: string;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface QuarterPlan {
@@ -76,6 +84,12 @@ export default function DashboardPage() {
     const [simulation, setSimulation] = useState<SimulationResult | null>(null);
     const [simLoading, setSimLoading] = useState(false);
     const [simCached, setSimCached] = useState(false);
+
+    // Market comparison state
+    const [comparison, setComparison] = useState<MarketComparisonResult | null>(null);
+    const [compLoading, setCompLoading] = useState(false);
+    const [compCached, setCompCached] = useState(false);
+    const [compTriggered, setCompTriggered] = useState(false);
 
     const router = useRouter();
 
@@ -445,6 +459,132 @@ export default function DashboardPage() {
                                         ))}
                                     </ul>
                                 </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* ── Section 5: Recruiter Market Comparison ── */}
+                <div className="flex flex-col gap-6 pt-4 border-t border-white/[0.06]">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">🎯</span>
+                                <h2 className="text-xl font-bold text-white">Recruiter Market Comparison</h2>
+                            </div>
+                            <p className="text-white/40 text-sm">See how you rank against peers in your field.</p>
+                        </div>
+                        {compCached && <span className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-widest">✓ Cached</span>}
+                    </div>
+
+                    {/* Trigger button — shown before first click */}
+                    {!compTriggered && !comparison && (
+                        <button
+                            onClick={async () => {
+                                setCompTriggered(true);
+                                setCompLoading(true);
+                                const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
+                                const email = sessionStorage.getItem("ismyjobsafe_email");
+                                if (!analysisId || !email) return;
+                                try {
+                                    const res = await fetch("/api/premium/market-comparison", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json", "x-user-email": email },
+                                        body: JSON.stringify({ analysisId }),
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok && data.success) {
+                                        setComparison(data.comparison);
+                                        setCompCached(data.cached);
+                                    }
+                                } catch { /* non-fatal */ } finally {
+                                    setCompLoading(false);
+                                }
+                            }}
+                            className="h-11 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                        >
+                            <span>📊</span>
+                            Compare Me to the Market
+                        </button>
+                    )}
+
+                    {compLoading && (
+                        <div className="flex items-center gap-3 py-6 justify-center">
+                            <span className="loading loading-spinner loading-sm text-violet-400" />
+                            <span className="text-white/40 text-sm">Analyzing your market position…</span>
+                        </div>
+                    )}
+
+                    {comparison && (
+                        <>
+                            {/* Percentile statement */}
+                            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.05] p-5 sm:p-6 flex flex-col gap-4">
+                                <div className="flex items-end justify-between flex-wrap gap-2">
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400/70 mb-1">Your Market Ranking</p>
+                                        <p className="text-3xl sm:text-4xl font-extrabold text-white tabular-nums">
+                                            {comparison.percentile}<span className="text-lg text-white/30">th</span>
+                                        </p>
+                                        <p className="text-sm text-white/50 mt-0.5">percentile in your field</p>
+                                    </div>
+                                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${comparison.percentile >= 86 ? "bg-emerald-500/15 text-emerald-300" :
+                                            comparison.percentile >= 71 ? "bg-blue-500/15 text-blue-300" :
+                                                comparison.percentile >= 51 ? "bg-indigo-500/15 text-indigo-300" :
+                                                    comparison.percentile >= 31 ? "bg-yellow-500/15 text-yellow-300" :
+                                                        "bg-red-500/15 text-red-300"
+                                        }`}>
+                                        {comparison.percentile_label}
+                                    </span>
+                                </div>
+
+                                {/* Percentile bar */}
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="relative h-3 w-full rounded-full bg-white/[0.06] overflow-hidden">
+                                        <div
+                                            className="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 transition-all duration-1000"
+                                            style={{ width: `${comparison.percentile}%` }}
+                                        />
+                                    </div>
+                                    <div className="flex justify-between text-[10px] text-white/25 font-medium tabular-nums">
+                                        <span>0</span>
+                                        <span className="text-violet-400/70 font-bold">{comparison.percentile}</span>
+                                        <span>100</span>
+                                    </div>
+                                </div>
+
+                                <p className="text-sm text-white/60 leading-relaxed border-t border-white/[0.06] pt-3">{comparison.summary}</p>
+                            </div>
+
+                            {/* Strengths & Weaknesses grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 flex flex-col gap-3">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">✓ Your Strengths vs Peers</p>
+                                    <ul className="flex flex-col gap-3">
+                                        {comparison.strengths.map((s, i) => (
+                                            <li key={i} className="flex flex-col gap-0.5">
+                                                <span className="text-sm font-semibold text-white/90">{s.area}</span>
+                                                <span className="text-[11px] text-white/40 leading-relaxed">{s.detail}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                                <div className="rounded-xl border border-orange-500/20 bg-orange-500/[0.04] p-4 flex flex-col gap-3">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-orange-400">▲ Gaps Behind Peers</p>
+                                    <ul className="flex flex-col gap-3">
+                                        {comparison.weaknesses.map((w, i) => (
+                                            <li key={i} className="flex flex-col gap-0.5">
+                                                <span className="text-sm font-semibold text-white/90">{w.area}</span>
+                                                <span className="text-[11px] text-white/40 leading-relaxed">{w.detail}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+
+                            {/* Positioning advice */}
+                            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-5 py-4 flex flex-col gap-2">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">🎯 Recruiter Positioning Advice</p>
+                                <p className="text-sm text-white/70 leading-relaxed">{comparison.positioning_advice}</p>
                             </div>
                         </>
                     )}

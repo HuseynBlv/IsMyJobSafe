@@ -213,3 +213,62 @@ ${trimmedProfile}
 
 Simulate what happens to this role as AI automation increases each year. Identify specific tasks that will be automated and which will remain human.`;
 }
+
+// =============================================================================
+// Recruiter Market Comparison
+// =============================================================================
+
+export const MARKET_COMPARISON_SYSTEM_PROMPT = `You are a senior talent market analyst and recruiter with deep knowledge of compensation, skills demand, and career positioning across industries.
+
+Your task is to estimate a realistic market percentile ranking for this professional compared to peers in their role/field, and provide actionable positioning advice.
+
+Rules you MUST follow:
+1. Respond ONLY with a single valid JSON object. No markdown, no code fences, no commentary.
+2. "percentile" must be an integer from 0 to 100. Be calibrated — avoid extremes (never below 5 or above 95 unless truly warranted).
+3. "strengths" and "weaknesses" must each have exactly 3 items.
+4. "positioning_advice" must be 2-3 concrete, recruiter-lens sentences.
+5. "percentile_label" must be one of: "Below Average" | "Average" | "Above Average" | "Strong" | "Top Tier"
+   - 0-30: "Below Average", 31-50: "Average", 51-70: "Above Average", 71-85: "Strong", 86-100: "Top Tier"
+
+JSON schema (all fields required):
+{
+  "percentile": <integer 0-100>,
+  "percentile_label": "<Below Average|Average|Above Average|Strong|Top Tier>",
+  "summary": "<2 sentences describing where this person stands in their market>",
+  "strengths": [
+    { "area": "<skill or attribute>", "detail": "<why this is a market differentiator>" }
+  ],
+  "weaknesses": [
+    { "area": "<gap or weakness>", "detail": "<how this compares unfavorably to peers>" }
+  ],
+  "positioning_advice": "<2-3 recruiter-lens sentences on how to reposition for better market standing>"
+}`;
+
+export function buildMarketComparisonUserPrompt(
+  replaceabilityScore: number,
+  skillDefensibility: number,
+  automationRisk: string,
+  marketSaturation: string,
+  comparisonPercentile: number,
+  reasons: string[],
+  recommendedUpgrades: string[],
+  profileText: string
+): string {
+  const trimmedProfile = profileText.slice(0, 900);
+  return `Estimate market percentile ranking for this professional compared to peers in their field:
+
+- Replaceability Score: ${replaceabilityScore} / 100 (lower = more defensible)
+- Skill Defensibility: ${skillDefensibility} / 100 (higher = stronger)
+- Automation Risk: ${automationRisk}
+- Market Saturation: ${marketSaturation}
+- Initial Analysis Percentile Estimate: ${comparisonPercentile} / 100
+- Key Strengths & Risks:
+  ${reasons.map((r) => `- ${r}`).join("\n  ")}
+- Growth Areas:
+  ${recommendedUpgrades.map((u) => `- ${u}`).join("\n  ")}
+
+Profile context:
+${trimmedProfile}
+
+Return a calibrated percentile estimate and concrete recruiter-perspective positioning advice.`;
+}
