@@ -10,6 +10,14 @@ import { connectDB } from "@/lib/db";
 import { Subscription } from "@/models/Subscription";
 
 export async function GET(request: NextRequest) {
+    // ── Dev bypass ───────────────────────────────────────────────────────────
+    if (
+        process.env.DEV_PREMIUM_BYPASS === "true" &&
+        process.env.NODE_ENV !== "production"
+    ) {
+        return NextResponse.json({ active: true, status: "active" });
+    }
+
     const email = request.nextUrl.searchParams.get("email")?.toLowerCase().trim();
 
     if (!email || !email.includes("@")) {

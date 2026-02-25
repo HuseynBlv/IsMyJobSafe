@@ -83,3 +83,71 @@ export function buildPremiumPlanUserPrompt(
 
 Generate a 12-month plan divided into 4 quarters to significantly reduce this person's replaceability.`;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Salary Growth Projection prompts
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const SALARY_PROJECTION_SYSTEM_PROMPT = `You are a senior compensation strategist and labor-market economist. Generate realistic, data-grounded salary projections for three distinct career scenarios.
+
+Rules you MUST follow:
+1. Respond ONLY with a single valid JSON object. No markdown, no code fences, no commentary.
+2. All salary figures must be in the SAME currency and units as the input salary.
+3. Projections must be realistic — adjust for country cost-of-living, role automation exposure, and skill market demand.
+4. Do NOT fabricate unrealistic growth. Grounded credibility matters more than optimism.
+5. Each scenario must have a meaningfully different trajectory.
+6. "salary_now" must always equal the exact input salary provided.
+
+JSON schema (all fields required, exactly 3 scenarios in this order: no_change, moderate_upskill, ai_resistant_pivot):
+{
+  "scenarios": [
+    {
+      "id": "no_change",
+      "label": "No Change",
+      "description": "<1 sentence describing this path>",
+      "salary_now": <number — MUST match input salary exactly>,
+      "salary_year_1": <integer>,
+      "salary_year_3": <integer>,
+      "risk_commentary": "<2-3 sentences on risk and outlook>"
+    },
+    {
+      "id": "moderate_upskill",
+      "label": "Moderate Upskilling",
+      "description": "<1 sentence>",
+      "salary_now": <number>,
+      "salary_year_1": <integer>,
+      "salary_year_3": <integer>,
+      "risk_commentary": "<2-3 sentences>"
+    },
+    {
+      "id": "ai_resistant_pivot",
+      "label": "AI-Resistant Pivot",
+      "description": "<1 sentence>",
+      "salary_now": <number>,
+      "salary_year_1": <integer>,
+      "salary_year_3": <integer>,
+      "risk_commentary": "<2-3 sentences>"
+    }
+  ]
+}`;
+
+export function buildSalaryProjectionUserPrompt(
+  salary: number,
+  country: string,
+  replaceabilityScore: number,
+  automationRisk: string,
+  skillDefensibility: number,
+  recommendedUpgrades: string[]
+): string {
+  return `Generate salary projections for this professional:
+
+- Current Salary: ${salary.toLocaleString("en-US")} (local currency for ${country})
+- Country / Market: ${country}
+- Replaceability Score: ${replaceabilityScore} / 100 (higher = more replaceable)
+- Automation Risk: ${automationRisk}
+- Skill Defensibility: ${skillDefensibility} / 100 (higher = more defensible)
+- Recommended Upgrades:
+  ${recommendedUpgrades.map((u) => `- ${u}`).join("\n  ")}
+
+For the "AI-Resistant Pivot" scenario, assume the person pursues the top 2 upgrades aggressively and repositions into a higher-defensibility role. Be realistic about transition costs in year 1 — year 1 salary may be flat or only slightly higher before the pivot pays off in year 3.`;
+}

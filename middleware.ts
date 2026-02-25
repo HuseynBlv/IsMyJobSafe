@@ -17,6 +17,14 @@ export const config = {
 };
 
 export async function middleware(request: NextRequest) {
+    // ── Dev bypass ───────────────────────────────────────────────────────────
+    if (
+        process.env.DEV_PREMIUM_BYPASS === "true" &&
+        process.env.NODE_ENV !== "production"
+    ) {
+        return NextResponse.next();
+    }
+
     const email = request.headers.get("x-user-email")?.toLowerCase().trim();
 
     if (!email || !email.includes("@")) {

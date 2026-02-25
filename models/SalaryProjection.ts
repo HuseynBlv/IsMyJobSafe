@@ -21,3 +21,5 @@ SalaryProjectionSchema.index({ userId: 1, analysisId: 1 }, { unique: true });
 export const SalaryProjection =
     mongoose.models.SalaryProjection ||
     mongoose.model("SalaryProjection", SalaryProjectionSchema);
+
+
