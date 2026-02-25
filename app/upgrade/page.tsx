@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
-import PaddleCheckout from "@/components/PaddleCheckout";
 
 const features = {
     free: [
@@ -30,12 +29,18 @@ export default function UpgradePage() {
     const [purchased, setPurchased] = useState(false);
     const router = useRouter();
 
-    function handleSuccess() {
-        // Persist email so the dashboard can pass it as x-user-email
-        if (email) sessionStorage.setItem("ismyjobsafe_email", email.toLowerCase().trim());
-        setPurchased(true);
-        // Give Paddle a moment to close, then redirect
-        setTimeout(() => router.push("/dashboard"), 1800);
+    const GUMROAD_URL = process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_URL || "#";
+
+    function handleGumroadClick() {
+        if (!email) {
+            alert("Please enter your email to proceed.");
+            return;
+        }
+        sessionStorage.setItem("ismyjobsafe_email", email.toLowerCase().trim());
+        const checkoutUrl = new URL(GUMROAD_URL, window.location.origin);
+        checkoutUrl.searchParams.set("wanted", "true");
+        checkoutUrl.searchParams.set("email", email.toLowerCase().trim());
+        window.location.href = checkoutUrl.toString();
     }
 
     return (
@@ -101,7 +106,7 @@ export default function UpgradePage() {
                                 </span>
                             </div>
                             <p className="text-3xl font-bold text-white">
-                                $9{" "}
+                                $3.99{" "}
                                 <span className="text-base font-normal text-[var(--text-muted)]">
                                     / report
                                 </span>
@@ -117,7 +122,7 @@ export default function UpgradePage() {
                             ))}
                         </ul>
 
-                        {/* Email input + Paddle checkout */}
+                        {/* Email input + Gumroad checkout */}
                         <div className="relative flex flex-col gap-3">
                             <input
                                 id="checkout-email"
@@ -127,20 +132,19 @@ export default function UpgradePage() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="input input-sm w-full rounded-xl bg-white/5 border border-[var(--border)] text-white placeholder-white/30 focus:outline-none focus:border-indigo-500/60 px-3 h-10"
                             />
-                            <PaddleCheckout
-                                email={email}
-                                onSuccess={handleSuccess}
+                            <button
+                                onClick={handleGumroadClick}
                                 className="btn w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 border-none text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 relative disabled:opacity-60"
                             >
-                                Unlock Full Report — $9
-                            </PaddleCheckout>
+                                Unlock Full Report — $3.99
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <p className="text-xs text-[var(--text-muted)]">
-                    Payments processed by{" "}
-                    <span className="text-white/50">Paddle</span>. No subscription.
+                    Payments processed securely by{" "}
+                    <span className="text-white/50">Gumroad</span>. No recurring subscription.
                 </p>
             </main>
         </div>

@@ -1,17 +1,13 @@
-/**
- * Subscription model.
- * Keyed by email (user identifier) and paddleCustomerId.
- */
-
 import mongoose, { Schema, model, models, type Document } from "mongoose";
 
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing";
 
 export interface ISubscription extends Document {
     email: string;
-    paddleCustomerId: string;
+    paddleCustomerId?: string; // Optional (legacy/fallback)
     paddleSubscriptionId?: string;
-    paddleTransactionId?: string; // for one-time purchases
+    paddleTransactionId?: string;
+    gumroadSaleId?: string;    // New for Gumroad
     status: SubscriptionStatus;
     currentPeriodEnd?: Date;
     createdAt: Date;
@@ -29,14 +25,17 @@ const SubscriptionSchema = new Schema<ISubscription>(
         },
         paddleCustomerId: {
             type: String,
-            required: true,
-            index: true,
+            sparse: true, // Make sparse to allow missing values
         },
         paddleSubscriptionId: {
             type: String,
             sparse: true,
         },
         paddleTransactionId: {
+            type: String,
+            sparse: true,
+        },
+        gumroadSaleId: {
             type: String,
             sparse: true,
         },
@@ -55,7 +54,6 @@ const SubscriptionSchema = new Schema<ISubscription>(
     }
 );
 
-// Prevent model re-compilation during hot-reload
 export const Subscription =
     (models.Subscription as mongoose.Model<ISubscription>) ??
     model<ISubscription>("Subscription", SubscriptionSchema);

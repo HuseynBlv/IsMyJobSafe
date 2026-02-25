@@ -23,12 +23,7 @@ export const env = {
     // MongoDB
     MONGODB_URI: requireEnv("MONGODB_URI"),
 
-    // Paddle (server-side only)
-    PADDLE_API_KEY: requireEnv("PADDLE_API_KEY"),
-    PADDLE_WEBHOOK_SECRET: requireEnv("PADDLE_WEBHOOK_SECRET"),
-    PADDLE_PRICE_ID: requireEnv("PADDLE_PRICE_ID"),
-
-    // Optional: used to detect sandbox mode server-side
+    // Optional: used to detect sandbox mode server-side (legacy, can be removed if unused)
     PADDLE_ENV: (optionalEnv("NEXT_PUBLIC_PADDLE_ENV") ?? "sandbox") as
         | "sandbox"
         | "production",
