@@ -10,6 +10,21 @@ import type { SalaryScenario } from "@/components/SalaryChart";
 const SalaryChart = dynamic(() => import("@/components/SalaryChart"), { ssr: false });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface YearExposure {
+    year: 1 | 2 | 3;
+    exposure_level: "low" | "medium" | "high" | "critical";
+    headline: string;
+    key_change: string;
+}
+interface TaskItem { task: string; reason: string; }
+interface SimulationResult {
+    summary: string;
+    years: YearExposure[];
+    tasks_at_risk: TaskItem[];
+    tasks_safe: TaskItem[];
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface QuarterPlan {
     quarter: 1 | 2 | 3 | 4;
     objective: string;
@@ -57,6 +72,11 @@ export default function DashboardPage() {
     const [scenarios, setScenarios] = useState<SalaryScenario[] | null>(null);
     const [salaryCached, setSalaryCached] = useState(false);
 
+    // AI Simulation state
+    const [simulation, setSimulation] = useState<SimulationResult | null>(null);
+    const [simLoading, setSimLoading] = useState(false);
+    const [simCached, setSimCached] = useState(false);
+
     const router = useRouter();
 
     // ── Load protection plan on mount ─────────────────────────────────────────
@@ -83,6 +103,24 @@ export default function DashboardPage() {
                 if (!res.ok || !data.success) throw new Error(data.error ?? "Failed to generate plan.");
                 setPlan(data.plan);
                 setPlanCached(data.cached);
+
+                // ── 4. Auto-fetch AI simulation ──────────────────────────────────
+                const emailForSim = sessionStorage.getItem("ismyjobsafe_email")!;
+                setSimLoading(true);
+                try {
+                    const simRes = await fetch("/api/premium/ai-simulation", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-user-email": emailForSim },
+                        body: JSON.stringify({ analysisId }),
+                    });
+                    const simData = await simRes.json();
+                    if (simRes.ok && simData.success) {
+                        setSimulation(simData.simulation);
+                        setSimCached(simData.cached);
+                    }
+                } catch { /* non-fatal */ } finally {
+                    setSimLoading(false);
+                }
             } catch (err) {
                 setPlanError(err instanceof Error ? err.message : "Something went wrong.");
             } finally {
@@ -328,6 +366,87 @@ export default function DashboardPage() {
                             </div>
                             <SalaryChart scenarios={scenarios} />
                         </div>
+                    )}
+                </div>
+
+                {/* ── Section 4: AI Exposure Simulation ── */}
+                <div className="flex flex-col gap-6 pt-4 border-t border-white/[0.06]">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">🤖</span>
+                                <h2 className="text-xl font-bold text-white">AI Exposure Simulation</h2>
+                            </div>
+                            <p className="text-white/40 text-sm">How AI automation will reshape your role over 3 years.</p>
+                        </div>
+                        {simCached && <span className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-widest">✓ Cached</span>}
+                    </div>
+
+                    {simLoading && (
+                        <div className="flex items-center gap-3 py-6 justify-center">
+                            <span className="loading loading-spinner loading-sm text-indigo-400" />
+                            <span className="text-white/40 text-sm">Simulating your exposure…</span>
+                        </div>
+                    )}
+
+                    {simulation && (
+                        <>
+                            {/* Summary */}
+                            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-5 py-4">
+                                <p className="text-sm text-white/70 leading-relaxed">{simulation.summary}</p>
+                            </div>
+
+                            {/* Year timeline */}
+                            <div className="grid grid-cols-3 gap-3">
+                                {simulation.years.map((y) => {
+                                    const levelStyles: Record<string, string> = {
+                                        low: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+                                        medium: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
+                                        high: "border-orange-500/30 bg-orange-500/10 text-orange-300",
+                                        critical: "border-red-500/30 bg-red-500/10 text-red-300",
+                                    };
+                                    const style = levelStyles[y.exposure_level] ?? levelStyles.medium;
+                                    return (
+                                        <div key={y.year} className={`rounded-xl border ${style} p-4 flex flex-col gap-2`}>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Year {y.year}</span>
+                                                <span className="text-xs font-bold capitalize">{y.exposure_level}</span>
+                                            </div>
+                                            <p className="text-xs font-semibold text-white leading-snug">{y.headline}</p>
+                                            <p className="text-[11px] opacity-60 leading-relaxed">{y.key_change}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Tasks grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* At risk */}
+                                <div className="rounded-xl border border-red-500/20 bg-red-500/[0.04] p-4 flex flex-col gap-3">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-red-400">⚠ Tasks Likely Automated</p>
+                                    <ul className="flex flex-col gap-2">
+                                        {simulation.tasks_at_risk.map((t, i) => (
+                                            <li key={i} className="flex flex-col gap-0.5">
+                                                <span className="text-sm font-semibold text-white/90">{t.task}</span>
+                                                <span className="text-[11px] text-white/40 leading-relaxed">{t.reason}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                                {/* Safe */}
+                                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 flex flex-col gap-3">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">✓ Tasks Staying Safe</p>
+                                    <ul className="flex flex-col gap-2">
+                                        {simulation.tasks_safe.map((t, i) => (
+                                            <li key={i} className="flex flex-col gap-0.5">
+                                                <span className="text-sm font-semibold text-white/90">{t.task}</span>
+                                                <span className="text-[11px] text-white/40 leading-relaxed">{t.reason}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        </>
                     )}
                 </div>
 
