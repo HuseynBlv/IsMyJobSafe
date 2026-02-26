@@ -186,15 +186,32 @@ export default function ResultPage() {
                         ))}
 
                         {/* Specific Locked Hook */}
-                        <div className="relative rounded-xl border border-indigo-500/30 bg-indigo-900/10 p-5 overflow-hidden group">
-                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-600/90 text-white shadow-lg shadow-indigo-500/20">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-9-2c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" /></svg>
-                                    <span className="text-xs font-bold tracking-wide uppercase">Detailed Roadmap Locked</span>
+                        <button
+                            type="button"
+                            onClick={() => isPremium && router.push("/dashboard")}
+                            disabled={!isPremium}
+                            className={`relative w-full rounded-xl border p-5 overflow-hidden group text-left ${
+                                isPremium
+                                    ? "border-emerald-500/30 bg-emerald-900/10 cursor-pointer"
+                                    : "border-indigo-500/30 bg-indigo-900/10 cursor-not-allowed"
+                            }`}
+                        >
+                            <div className={`absolute inset-0 z-10 flex items-center justify-center ${isPremium ? "bg-black/20 backdrop-blur-[1px]" : "bg-black/40 backdrop-blur-[2px]"}`}>
+                                <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-white shadow-lg ${isPremium ? "bg-emerald-600/90 shadow-emerald-500/20" : "bg-indigo-600/90 shadow-indigo-500/20"}`}>
+                                    {isPremium ? (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-9-2c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" /></svg>
+                                    )}
+                                    <span className="text-xs font-bold tracking-wide uppercase">
+                                        {isPremium ? "Open Full Roadmap" : "Detailed Roadmap Locked"}
+                                    </span>
                                 </div>
                             </div>
                             {/* Fake content for background */}
-                            <div className="opacity-30 blur-sm pointer-events-none">
+                            <div className={`pointer-events-none ${isPremium ? "opacity-50" : "opacity-30 blur-sm"}`}>
                                 <h3 className="font-semibold text-white mb-2">Strategic 12-Month Execution Plan</h3>
                                 <ul className="space-y-2">
                                     <li className="h-2 w-full bg-white/20 rounded-full" />
@@ -202,7 +219,7 @@ export default function ResultPage() {
                                     <li className="h-2 w-4/6 bg-white/20 rounded-full" />
                                 </ul>
                             </div>
-                        </div>
+                        </button>
                     </div>
                 </div>
 
@@ -216,18 +233,26 @@ export default function ResultPage() {
                         <LockedBlurCard
                             title="12-Month Career Protection Plan"
                             description="Step-by-step timeline to immunize your role."
+                            unlocked={isPremium}
+                            onClick={() => router.push("/dashboard")}
                         />
                         <LockedBlurCard
                             title="Salary Growth Projection"
                             description="AI impact on your compensation trajectory."
+                            unlocked={isPremium}
+                            onClick={() => router.push("/dashboard")}
                         />
                         <LockedBlurCard
                             title="AI Exposure Simulation"
                             description="Scenario analysis for your specific daily tasks."
+                            unlocked={isPremium}
+                            onClick={() => router.push("/dashboard")}
                         />
                         <LockedBlurCard
                             title="Recruiter Market Comparison"
                             description="How you stack up against 5,000+ peers."
+                            unlocked={isPremium}
+                            onClick={() => router.push("/dashboard")}
                         />
                     </div>
                 </div>
