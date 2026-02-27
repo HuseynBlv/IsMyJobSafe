@@ -8,6 +8,11 @@ export interface ISubscription extends Document {
     paddleSubscriptionId?: string;
     paddleTransactionId?: string;
     gumroadSaleId?: string;    // New for Gumroad
+    lemonOrderId?: string;
+    lemonSubscriptionId?: string;
+    lemonOrderIdentifier?: string;
+    lemonCustomerId?: string;
+    paymentProvider?: "gumroad" | "lemonsqueezy" | "paddle";
     status: SubscriptionStatus;
     currentPeriodEnd?: Date;
     createdAt: Date;
@@ -37,6 +42,27 @@ const SubscriptionSchema = new Schema<ISubscription>(
         },
         gumroadSaleId: {
             type: String,
+            sparse: true,
+        },
+        lemonOrderId: {
+            type: String,
+            sparse: true,
+        },
+        lemonSubscriptionId: {
+            type: String,
+            sparse: true,
+        },
+        lemonOrderIdentifier: {
+            type: String,
+            sparse: true,
+        },
+        lemonCustomerId: {
+            type: String,
+            sparse: true,
+        },
+        paymentProvider: {
+            type: String,
+            enum: ["gumroad", "lemonsqueezy", "paddle"],
             sparse: true,
         },
         status: {

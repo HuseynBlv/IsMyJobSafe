@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 
@@ -26,21 +26,42 @@ const features = {
 
 export default function UpgradePage() {
     const [email, setEmail] = useState("");
-    const [purchased, setPurchased] = useState(false);
-    const router = useRouter();
+    const [checkoutLoading, setCheckoutLoading] = useState(false);
+    const [checkoutError, setCheckoutError] = useState<string | null>(null);
+    const searchParams = useSearchParams();
 
-    const GUMROAD_URL = process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_URL || "#";
+    const purchased = searchParams.get("checkout") === "success";
 
-    function handleGumroadClick() {
+    async function handleLemonCheckoutClick() {
         if (!email) {
             alert("Please enter your email to proceed.");
             return;
         }
-        sessionStorage.setItem("ismyjobsafe_email", email.toLowerCase().trim());
-        const checkoutUrl = new URL(GUMROAD_URL, window.location.origin);
-        checkoutUrl.searchParams.set("wanted", "true");
-        checkoutUrl.searchParams.set("email", email.toLowerCase().trim());
-        window.location.href = checkoutUrl.toString();
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id") ?? undefined;
+
+        sessionStorage.setItem("ismyjobsafe_email", normalizedEmail);
+        setCheckoutError(null);
+        setCheckoutLoading(true);
+
+        try {
+            const res = await fetch("/api/checkout/lemonsqueezy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: normalizedEmail, analysisId }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success || !data.checkoutUrl) {
+                throw new Error(data.error ?? "Failed to create checkout.");
+            }
+
+            window.location.href = data.checkoutUrl;
+        } catch (error) {
+            setCheckoutError(error instanceof Error ? error.message : "Checkout failed.");
+            setCheckoutLoading(false);
+        }
     }
 
     return (
@@ -122,7 +143,7 @@ export default function UpgradePage() {
                             ))}
                         </ul>
 
-                        {/* Email input + Gumroad checkout */}
+                        {/* Email input + Lemon Squeezy checkout */}
                         <div className="relative flex flex-col gap-3">
                             <input
                                 id="checkout-email"
@@ -132,11 +153,15 @@ export default function UpgradePage() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="input input-sm w-full rounded-xl bg-white/5 border border-[var(--border)] text-white placeholder-white/30 focus:outline-none focus:border-indigo-500/60 px-3 h-10"
                             />
+                            {checkoutError && (
+                                <p className="text-xs text-red-300">{checkoutError}</p>
+                            )}
                             <button
-                                onClick={handleGumroadClick}
+                                onClick={handleLemonCheckoutClick}
+                                disabled={checkoutLoading}
                                 className="btn w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 border-none text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 relative disabled:opacity-60"
                             >
-                                Unlock Full Report — $3.99
+                                {checkoutLoading ? "Redirecting to checkout..." : "Unlock Full Report — $3.99"}
                             </button>
                         </div>
                     </div>
@@ -144,7 +169,7 @@ export default function UpgradePage() {
 
                 <p className="text-xs text-[var(--text-muted)]">
                     Payments processed securely by{" "}
-                    <span className="text-white/50">Gumroad</span>. No recurring subscription.
+                    <span className="text-white/50">Lemon Squeezy</span>. No recurring subscription.
                 </p>
             </main>
         </div>

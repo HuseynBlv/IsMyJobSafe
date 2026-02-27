@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     // For subscriptions with expiry, confirm period hasn't ended
     const isActive =
-        record.status === "active" &&
+        (record.status === "active" || record.status === "trialing") &&
         (!record.currentPeriodEnd || record.currentPeriodEnd > new Date());
 
     return NextResponse.json({

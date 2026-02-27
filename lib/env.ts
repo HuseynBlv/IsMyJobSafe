@@ -31,4 +31,13 @@ export const env = {
     // LLM Provider
     LLM_PROVIDER: (optionalEnv("LLM_PROVIDER") ?? "anthropic") as "anthropic" | "groq",
     GROQ_API_KEY: optionalEnv("GROQ_API_KEY"),
+
+    // Lemon Squeezy (Payments)
+    LEMON_SQUEEZY_API_KEY: optionalEnv("LEMON_SQUEEZY_API_KEY"),
+    LEMON_SQUEEZY_STORE_ID: optionalEnv("LEMON_SQUEEZY_STORE_ID"),
+    LEMON_SQUEEZY_VARIANT_ID: optionalEnv("LEMON_SQUEEZY_VARIANT_ID"),
+    LEMON_SQUEEZY_WEBHOOK_SECRET: optionalEnv("LEMON_SQUEEZY_WEBHOOK_SECRET"),
+    LEMON_SQUEEZY_SUCCESS_URL: optionalEnv("LEMON_SQUEEZY_SUCCESS_URL"),
+    LEMON_SQUEEZY_CHECKOUT_TEST_MODE:
+        (optionalEnv("LEMON_SQUEEZY_CHECKOUT_TEST_MODE") ?? "false") === "true",
 } as const;
