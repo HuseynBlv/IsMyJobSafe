@@ -1,13 +1,21 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { Analysis } from "@/models/Analysis";
 import { connectDB } from "@/lib/db";
+import { Report } from "@/models/Report";
 import { Subscription } from "@/models/Subscription";
+import { User } from "@/models/User";
 import { env } from "@/lib/env";
 
 interface LemonWebhookPayload {
     meta?: {
         event_name?: string;
-        custom_data?: Record<string, unknown>;
+        custom_data?: {
+            email?: string;
+            user_id?: string;
+            analysis_id?: string;
+            [key: string]: unknown;
+        };
     };
     data?: {
         id?: string;
@@ -89,8 +97,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: "Missing event name." }, { status: 400 });
     }
 
-    // Ignore events we don't need for one-time checkout unlocks.
-    if (!["order_created", "order_refunded", "subscription_created", "subscription_updated", "subscription_cancelled", "subscription_expired"].includes(eventName)) {
+    if (
+        ![
+            "order_created",
+            "order_refunded",
+            "subscription_created",
+            "subscription_updated",
+            "subscription_cancelled",
+            "subscription_expired",
+        ].includes(eventName)
+    ) {
         return NextResponse.json({ success: true, ignored: true, event: eventName });
     }
 
@@ -117,10 +133,7 @@ export async function POST(request: NextRequest) {
         let mappedStatus: "active" | "cancelled" | "past_due" | "trialing" | null = null;
         if (eventName === "order_created") {
             mappedStatus = "active";
-        } else if (
-            eventName === "subscription_created" ||
-            eventName === "subscription_updated"
-        ) {
+        } else if (eventName === "subscription_created" || eventName === "subscription_updated") {
             const lsStatus = payload.data?.attributes?.status ?? "";
             mappedStatus =
                 lsStatus === "active"
@@ -142,6 +155,62 @@ export async function POST(request: NextRequest) {
 
         if (!mappedStatus) {
             return NextResponse.json({ success: true, ignored: true, event: eventName });
+        }
+
+        if (eventName === "order_created") {
+            const paymentId = lemonOrderId || lemonOrderIdentifier;
+            if (!paymentId) {
+                return NextResponse.json(
+                    { success: false, error: "Missing payment identifier." },
+                    { status: 400 }
+                );
+            }
+
+            const existingReport = await Report.findOne({ paymentId }).select("_id").lean();
+            if (!existingReport) {
+                const analysisId = payload.meta?.custom_data?.analysis_id;
+                const userId = payload.meta?.custom_data?.user_id;
+
+                if (!analysisId || typeof analysisId !== "string") {
+                    return NextResponse.json(
+                        { success: false, error: "Missing analysis_id in webhook payload." },
+                        { status: 400 }
+                    );
+                }
+
+                let user = null;
+                if (userId && typeof userId === "string") {
+                    user = await User.findById(userId).select("_id email").lean();
+                }
+                if (!user) {
+                    user = await User.findOne({ email }).select("_id email").lean();
+                }
+                if (!user) {
+                    return NextResponse.json(
+                        { success: false, error: "User account not found for this purchase." },
+                        { status: 404 }
+                    );
+                }
+
+                const analysis = await Analysis.findById(analysisId)
+                    .select("_id result")
+                    .lean();
+
+                if (!analysis) {
+                    return NextResponse.json(
+                        { success: false, error: "Source analysis not found." },
+                        { status: 404 }
+                    );
+                }
+
+                await Report.create({
+                    userId: user._id.toString(),
+                    userEmail: user.email,
+                    sourceAnalysisId: analysis._id,
+                    reportData: analysis.result,
+                    paymentId,
+                });
+            }
         }
 
         await Subscription.findOneAndUpdate(

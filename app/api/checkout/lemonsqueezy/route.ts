@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 import { env } from "@/lib/env";
 
 interface CreateCheckoutRequestBody {
-    email?: string;
     analysisId?: string;
 }
 
@@ -24,6 +24,14 @@ function requireLemonConfig() {
 }
 
 export async function POST(request: NextRequest) {
+    const user = await getCurrentUserFromRequest(request);
+    if (!user) {
+        return NextResponse.json(
+            { success: false, error: "Create an account or log in before checkout." },
+            { status: 401 }
+        );
+    }
+
     let body: CreateCheckoutRequestBody;
     try {
         body = (await request.json()) as CreateCheckoutRequestBody;
@@ -34,10 +42,10 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const email = body.email?.toLowerCase().trim();
-    if (!email || !email.includes("@")) {
+    const analysisId = body.analysisId?.trim();
+    if (!analysisId) {
         return NextResponse.json(
-            { success: false, error: "A valid email is required." },
+            { success: false, error: "Run a free analysis before purchasing the premium report." },
             { status: 400 }
         );
     }
@@ -57,17 +65,18 @@ export async function POST(request: NextRequest) {
 
     const successUrl =
         env.LEMON_SQUEEZY_SUCCESS_URL ||
-        new URL(`/payment/success?email=${encodeURIComponent(email)}`, request.url).toString();
+        new URL("/payment/success", request.url).toString();
 
     const payload = {
         data: {
             type: "checkouts",
             attributes: {
                 checkout_data: {
-                    email,
+                    email: user.email,
                     custom: {
-                        email,
-                        analysis_id: body.analysisId ?? "",
+                        email: user.email,
+                        user_id: user.id,
+                        analysis_id: analysisId,
                         source: "upgrade-page",
                     },
                 },
@@ -112,9 +121,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             {
                 success: false,
-                error: `Failed to reach Lemon Squeezy: ${
-                    error instanceof Error ? error.message : String(error)
-                }`,
+                error: `Failed to reach Lemon Squeezy: ${error instanceof Error ? error.message : String(error)}`,
             },
             { status: 502 }
         );
@@ -137,7 +144,7 @@ export async function POST(request: NextRequest) {
             "errors" in lsJson &&
             Array.isArray((lsJson as { errors?: unknown[] }).errors)
                 ? ((lsJson as { errors: Array<{ detail?: string }> }).errors
-                    .map((e) => e.detail)
+                    .map((entry) => entry.detail)
                     .filter(Boolean)
                     .join("; ") || "Checkout creation failed.")
                 : "Checkout creation failed.";

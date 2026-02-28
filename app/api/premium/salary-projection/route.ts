@@ -1,14 +1,6 @@
-/**
- * POST /api/premium/salary-projection
- *
- * Protected by middleware.ts — requires active subscription + x-user-email header.
- *
- * Request body:  { "analysisId": "...", "salary": 85000, "country": "United States" }
- * Response body: { "success": true, "scenarios": SalaryScenario[], "cached": boolean }
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
+import { requireOwnedReport } from "@/lib/premium-access";
 import { Analysis } from "@/models/Analysis";
 import { SalaryProjection } from "@/models/SalaryProjection";
 import { groq } from "@/lib/groq";
@@ -29,7 +21,6 @@ export interface SalaryScenario {
 }
 
 export async function POST(request: NextRequest) {
-    // ── 1. Parse & validate request body ────────────────────────────────────
     let body: unknown;
     try {
         body = await request.json();
@@ -56,17 +47,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: "country is required." }, { status: 400 });
     }
 
-    const userId = request.headers.get("x-user-email")!.toLowerCase().trim();
+    const access = await requireOwnedReport(request, analysisId);
+    if (!access.ok) {
+        return access.response;
+    }
+
+    const userId = access.access.userKey;
 
     await connectDB();
 
-    // ── 2. Cache check ───────────────────────────────────────────────────────
     const existing = await SalaryProjection.findOne({ userId, analysisId }).lean();
     if (existing) {
         return NextResponse.json({ success: true, scenarios: existing.projections, cached: true });
     }
 
-    // ── 3. Load stored analysis ──────────────────────────────────────────────
     const analysisDoc = await Analysis.findById(analysisId).lean();
     if (!analysisDoc) {
         return NextResponse.json({ success: false, error: "Analysis not found." }, { status: 404 });
@@ -74,12 +68,11 @@ export async function POST(request: NextRequest) {
 
     const result = analysisDoc.result as AnalysisResult;
 
-    // ── 4. Call Groq ─────────────────────────────────────────────────────────
     let rawText: string;
     try {
         const completion = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
-            temperature: 0.4, // Lower temp = more consistent, grounded numbers
+            temperature: 0.4,
             messages: [
                 { role: "system", content: SALARY_PROJECTION_SYSTEM_PROMPT },
                 {
@@ -97,11 +90,10 @@ export async function POST(request: NextRequest) {
         });
         rawText = completion.choices[0]?.message?.content ?? "";
     } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return NextResponse.json({ success: false, error: `Groq API error: ${msg}` }, { status: 502 });
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ success: false, error: `Groq API error: ${message}` }, { status: 502 });
     }
 
-    // ── 5. Parse & validate response ─────────────────────────────────────────
     let parsed: { scenarios: SalaryScenario[] };
     try {
         const jsonText = rawText
@@ -114,10 +106,10 @@ export async function POST(request: NextRequest) {
             !Array.isArray(parsed?.scenarios) ||
             parsed.scenarios.length !== 3 ||
             parsed.scenarios.some(
-                (s) =>
-                    typeof s.salary_now !== "number" ||
-                    typeof s.salary_year_1 !== "number" ||
-                    typeof s.salary_year_3 !== "number"
+                (scenario) =>
+                    typeof scenario.salary_now !== "number" ||
+                    typeof scenario.salary_year_1 !== "number" ||
+                    typeof scenario.salary_year_3 !== "number"
             )
         ) {
             throw new Error("Invalid scenario structure.");
@@ -129,7 +121,6 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // ── 6. Cache in MongoDB ──────────────────────────────────────────────────
     try {
         await SalaryProjection.create({
             userId,
@@ -138,9 +129,8 @@ export async function POST(request: NextRequest) {
             country: country.trim(),
             projections: parsed.scenarios,
         });
-    } catch (dbErr) {
-        console.error("[salary-projection] DB save error:", dbErr);
-        // Non-fatal — still return result
+    } catch (dbError) {
+        console.error("[salary-projection] DB save error:", dbError);
     }
 
     return NextResponse.json({ success: true, scenarios: parsed.scenarios, cached: false });

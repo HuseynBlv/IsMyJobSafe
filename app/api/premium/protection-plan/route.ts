@@ -1,16 +1,6 @@
-/**
- * POST /api/premium/protection-plan
- *
- * Protected by middleware.ts — requires an active subscription
- * and a valid `x-user-email` header.
- *
- * Request body:  { "analysisId": "<MongoDB ObjectId string>" }
- * Response body: { "success": true, "plan": <QuarterPlan[]>, "cached": boolean }
- *             or { "success": false, "error": "<message>" }
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
+import { requireOwnedReport } from "@/lib/premium-access";
 import { Analysis } from "@/models/Analysis";
 import { ProtectionPlan } from "@/models/ProtectionPlan";
 import { groq } from "@/lib/groq";
@@ -21,7 +11,6 @@ import {
 import type { AnalysisResult } from "@/types/analysis";
 
 export async function POST(request: NextRequest) {
-    // --- 1. Parse body ---
     let body: unknown;
     try {
         body = await request.json();
@@ -32,8 +21,7 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const { analysisId } =
-        (body as { analysisId?: string }) ?? {};
+    const { analysisId } = (body as { analysisId?: string }) ?? {};
 
     if (!analysisId || typeof analysisId !== "string") {
         return NextResponse.json(
@@ -42,15 +30,15 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // email is guaranteed by middleware
-    const userId = request.headers
-        .get("x-user-email")!
-        .toLowerCase()
-        .trim();
+    const access = await requireOwnedReport(request, analysisId);
+    if (!access.ok) {
+        return access.response;
+    }
+
+    const userId = access.access.userKey;
 
     await connectDB();
 
-    // --- 2. Check cache first (avoid re-generating) ---
     const existing = await ProtectionPlan.findOne({
         userId,
         analysisId,
@@ -64,7 +52,6 @@ export async function POST(request: NextRequest) {
         });
     }
 
-    // --- 3. Load stored analysis ---
     const analysisDoc = await Analysis.findById(analysisId).lean();
     if (!analysisDoc) {
         return NextResponse.json(
@@ -75,7 +62,6 @@ export async function POST(request: NextRequest) {
 
     const result = analysisDoc.result as AnalysisResult;
 
-    // --- 4. Call Groq ---
     let rawText: string;
     try {
         const completion = await groq.chat.completions.create({
@@ -96,14 +82,13 @@ export async function POST(request: NextRequest) {
         });
         rawText = completion.choices[0]?.message?.content ?? "";
     } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const message = err instanceof Error ? err.message : String(err);
         return NextResponse.json(
-            { success: false, error: `Groq API error: ${msg}` },
+            { success: false, error: `Groq API error: ${message}` },
             { status: 502 }
         );
     }
 
-    // --- 5. Parse JSON response ---
     let parsed: { quarters: QuarterPlan[] };
     try {
         const jsonText = rawText
@@ -124,16 +109,14 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // --- 6. Cache in MongoDB ---
     try {
         await ProtectionPlan.create({
             userId,
             analysisId,
             planJson: parsed.quarters,
         });
-    } catch (dbErr) {
-        // Non-fatal — return the plan even if caching fails
-        console.error("[protection-plan] DB save error:", dbErr);
+    } catch (dbError) {
+        console.error("[protection-plan] DB save error:", dbError);
     }
 
     return NextResponse.json({
@@ -143,7 +126,6 @@ export async function POST(request: NextRequest) {
     });
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────
 export interface QuarterPlan {
     quarter: 1 | 2 | 3 | 4;
     objective: string;

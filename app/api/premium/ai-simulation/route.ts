@@ -1,14 +1,6 @@
-/**
- * POST /api/premium/ai-simulation
- *
- * Protected by middleware.ts — requires active subscription + x-user-email header.
- *
- * Request body:  { "analysisId": "..." }
- * Response body: { "success": true, "simulation": AiSimulation, "cached": boolean }
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
+import { requireOwnedReport } from "@/lib/premium-access";
 import { Analysis } from "@/models/Analysis";
 import { AiSimulation } from "@/models/AiSimulation";
 import { groq } from "@/lib/groq";
@@ -19,27 +11,32 @@ import {
 import type { AnalysisResult } from "@/types/analysis";
 
 export async function POST(request: NextRequest) {
-    // ── 1. Parse & validate ──────────────────────────────────────────────────
     let body: unknown;
-    try { body = await request.json(); }
-    catch { return NextResponse.json({ success: false, error: "Invalid JSON." }, { status: 400 }); }
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ success: false, error: "Invalid JSON." }, { status: 400 });
+    }
 
     const { analysisId } = (body as { analysisId?: string }) ?? {};
     if (!analysisId || typeof analysisId !== "string") {
         return NextResponse.json({ success: false, error: "analysisId is required." }, { status: 400 });
     }
 
-    const userId = request.headers.get("x-user-email")!.toLowerCase().trim();
+    const access = await requireOwnedReport(request, analysisId);
+    if (!access.ok) {
+        return access.response;
+    }
+
+    const userId = access.access.userKey;
 
     await connectDB();
 
-    // ── 2. Cache check ───────────────────────────────────────────────────────
     const existing = await AiSimulation.findOne({ userId, analysisId }).lean();
     if (existing) {
         return NextResponse.json({ success: true, simulation: existing.simulation, cached: true });
     }
 
-    // ── 3. Load stored analysis ──────────────────────────────────────────────
     const analysisDoc = await Analysis.findById(analysisId).lean();
     if (!analysisDoc) {
         return NextResponse.json({ success: false, error: "Analysis not found." }, { status: 404 });
@@ -48,7 +45,6 @@ export async function POST(request: NextRequest) {
     const result = analysisDoc.result as AnalysisResult;
     const profile = analysisDoc.profileText as string;
 
-    // ── 4. Call Groq ─────────────────────────────────────────────────────────
     let rawText: string;
     try {
         const completion = await groq.chat.completions.create({
@@ -71,16 +67,17 @@ export async function POST(request: NextRequest) {
         });
         rawText = completion.choices[0]?.message?.content ?? "";
     } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return NextResponse.json({ success: false, error: `Groq API error: ${msg}` }, { status: 502 });
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ success: false, error: `Groq API error: ${message}` }, { status: 502 });
     }
 
-    // ── 5. Parse & validate ──────────────────────────────────────────────────
     let parsed: SimulationResult;
     try {
         const jsonText = rawText.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/, "").trim();
         parsed = JSON.parse(jsonText);
-        if (!Array.isArray(parsed?.years) || parsed.years.length !== 3) throw new Error("Invalid shape.");
+        if (!Array.isArray(parsed?.years) || parsed.years.length !== 3) {
+            throw new Error("Invalid shape.");
+        }
     } catch {
         return NextResponse.json(
             { success: false, error: `Failed to parse Groq response. Raw: ${rawText.slice(0, 300)}` },
@@ -88,17 +85,15 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // ── 6. Cache ─────────────────────────────────────────────────────────────
     try {
         await AiSimulation.create({ userId, analysisId, simulation: parsed });
-    } catch (dbErr) {
-        console.error("[ai-simulation] DB save error:", dbErr);
+    } catch (dbError) {
+        console.error("[ai-simulation] DB save error:", dbError);
     }
 
     return NextResponse.json({ success: true, simulation: parsed, cached: false });
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────
 export interface YearExposure {
     year: 1 | 2 | 3;
     exposure_level: "low" | "medium" | "high" | "critical";

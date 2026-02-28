@@ -1,16 +1,10 @@
-/**
- * GET /api/subscription/status?email=user@example.com
- *
- * Returns the active subscription status for a given email.
- * Used client-side to gate premium feature reveals.
- */
-
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
+import { Report } from "@/models/Report";
 import { Subscription } from "@/models/Subscription";
 
 export async function GET(request: NextRequest) {
-    // ── Dev bypass ───────────────────────────────────────────────────────────
     if (
         process.env.DEV_PREMIUM_BYPASS === "true" &&
         process.env.NODE_ENV !== "production"
@@ -18,31 +12,50 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ active: true, status: "active" });
     }
 
-    const email = request.nextUrl.searchParams.get("email")?.toLowerCase().trim();
-
-    if (!email || !email.includes("@")) {
-        return NextResponse.json(
-            { error: "Valid email query parameter required." },
-            { status: 400 }
-        );
+    const user = await getCurrentUserFromRequest(request);
+    if (!user) {
+        return NextResponse.json({ active: false, status: "unauthenticated" });
     }
+
+    const analysisId = request.nextUrl.searchParams.get("analysisId")?.trim();
 
     await connectDB();
 
-    const record = await Subscription.findOne({ email }).select("status currentPeriodEnd").lean();
+    if (analysisId) {
+        const report = await Report.findOne({
+            sourceAnalysisId: analysisId,
+            $or: [{ userId: user.id }, { userEmail: user.email }],
+        })
+            .select("_id createdAt")
+            .lean();
 
-    if (!record) {
-        return NextResponse.json({ active: false, status: "none" });
+        return NextResponse.json({
+            active: Boolean(report),
+            status: report ? "owned" : "not_owned",
+            reportCreatedAt: report ? report.createdAt : null,
+        });
     }
 
-    // For subscriptions with expiry, confirm period hasn't ended
-    const isActive =
-        (record.status === "active" || record.status === "trialing") &&
-        (!record.currentPeriodEnd || record.currentPeriodEnd > new Date());
+    const [report, subscription] = await Promise.all([
+        Report.findOne({
+            $or: [{ userId: user.id }, { userEmail: user.email }],
+        })
+            .select("_id")
+            .lean(),
+        Subscription.findOne({ email: user.email })
+            .select("status currentPeriodEnd")
+            .lean(),
+    ]);
+
+    const subscriptionActive =
+        Boolean(subscription) &&
+        (subscription!.status === "active" || subscription!.status === "trialing") &&
+        (!subscription!.currentPeriodEnd || subscription!.currentPeriodEnd > new Date());
 
     return NextResponse.json({
-        active: isActive,
-        status: record.status,
-        currentPeriodEnd: record.currentPeriodEnd ?? null,
+        active: Boolean(report) || subscriptionActive,
+        status: report ? "owned" : subscription?.status ?? "none",
+        hasReports: Boolean(report),
+        currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
     });
 }

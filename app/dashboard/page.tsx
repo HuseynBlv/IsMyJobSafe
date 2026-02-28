@@ -99,18 +99,22 @@ export default function DashboardPage() {
             const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
             if (!analysisId) { router.replace("/"); return; }
 
-            const email = sessionStorage.getItem("ismyjobsafe_email");
-            if (!email) { router.replace("/upgrade"); return; }
-
             try {
-                const { active } = await fetch(`/api/subscription/status?email=${encodeURIComponent(email)}`).then(r => r.json());
+                const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
+                const sessionData = await sessionRes.json();
+                if (!sessionRes.ok || !sessionData.authenticated) { router.replace(`/login?next=${encodeURIComponent("/dashboard")}`); return; }
+
+                const { active } = await fetch(
+                    `/api/subscription/status?analysisId=${encodeURIComponent(analysisId)}`,
+                    { cache: "no-store" }
+                ).then((response) => response.json());
                 if (!active) { router.replace("/upgrade"); return; }
             } catch { router.replace("/upgrade"); return; }
 
             try {
                 const res = await fetch("/api/premium/protection-plan", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "x-user-email": email },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ analysisId }),
                 });
                 const data = await res.json();
@@ -119,12 +123,11 @@ export default function DashboardPage() {
                 setPlanCached(data.cached);
 
                 // ── 4. Auto-fetch AI simulation ──────────────────────────────────
-                const emailForSim = sessionStorage.getItem("ismyjobsafe_email")!;
                 setSimLoading(true);
                 try {
                     const simRes = await fetch("/api/premium/ai-simulation", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json", "x-user-email": emailForSim },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ analysisId }),
                     });
                     const simData = await simRes.json();
@@ -151,8 +154,7 @@ export default function DashboardPage() {
         if (!salaryNum || salaryNum <= 0) { setSalaryError("Please enter a valid salary."); return; }
 
         const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
-        const email = sessionStorage.getItem("ismyjobsafe_email");
-        if (!analysisId || !email) return;
+        if (!analysisId) return;
 
         setSalaryLoading(true);
         setSalaryError(null);
@@ -160,7 +162,7 @@ export default function DashboardPage() {
         try {
             const res = await fetch("/api/premium/salary-projection", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "x-user-email": email },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ analysisId, salary: salaryNum, country }),
             });
             const data = await res.json();
@@ -484,12 +486,11 @@ export default function DashboardPage() {
                                 setCompTriggered(true);
                                 setCompLoading(true);
                                 const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
-                                const email = sessionStorage.getItem("ismyjobsafe_email");
-                                if (!analysisId || !email) return;
+                                if (!analysisId) return;
                                 try {
                                     const res = await fetch("/api/premium/market-comparison", {
                                         method: "POST",
-                                        headers: { "Content-Type": "application/json", "x-user-email": email },
+                                        headers: { "Content-Type": "application/json" },
                                         body: JSON.stringify({ analysisId }),
                                     });
                                     const data = await res.json();

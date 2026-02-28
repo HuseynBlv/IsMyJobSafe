@@ -23,6 +23,9 @@ export const env = {
     // MongoDB
     MONGODB_URI: requireEnv("MONGODB_URI"),
 
+    // Auth
+    JWT_SECRET: requireEnv("JWT_SECRET"),
+
     // Optional: used to detect sandbox mode server-side (legacy, can be removed if unused)
     PADDLE_ENV: (optionalEnv("NEXT_PUBLIC_PADDLE_ENV") ?? "sandbox") as
         | "sandbox"

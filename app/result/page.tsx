@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -18,33 +19,52 @@ function getUrgencyTime() {
 }
 
 export default function ResultPage() {
-    const [result, setResult] = useState<AnalysisResult | null>(null);
+    const [result] = useState<AnalysisResult | null>(() => {
+        if (typeof window === "undefined") {
+            return null;
+        }
+
+        const raw = sessionStorage.getItem("ismyjobsafe_result");
+        if (!raw) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(raw) as AnalysisResult;
+        } catch {
+            return null;
+        }
+    });
     const [copied, setCopied] = useState(false);
     const [timeLeft, setTimeLeft] = useState("");
     const [isPremium, setIsPremium] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
-        const raw = sessionStorage.getItem("ismyjobsafe_result");
-        if (!raw) {
+        if (!result) {
             router.replace("/");
             return;
         }
-        try {
-            setResult(JSON.parse(raw) as AnalysisResult);
-        } catch {
-            router.replace("/");
-        }
 
-        // Check if user already has an active subscription
-        const email = sessionStorage.getItem("ismyjobsafe_email");
-        if (email) {
-            fetch(`/api/subscription/status?email=${encodeURIComponent(email)}`)
-                .then((r) => r.json())
-                .then((d) => setIsPremium(d.active === true))
+        const currentAnalysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
+        if (currentAnalysisId) {
+            fetch("/api/auth/session", { cache: "no-store" })
+                .then((response) => response.json())
+                .then((session) => {
+                    if (!session.authenticated) {
+                        return;
+                    }
+
+                    return fetch(
+                        `/api/subscription/status?analysisId=${encodeURIComponent(currentAnalysisId)}`,
+                        { cache: "no-store" }
+                    )
+                        .then((response) => response.json())
+                        .then((status) => setIsPremium(status.active === true));
+                })
                 .catch(() => { });
         }
-    }, [router]);
+    }, [result, router]);
 
     // Simple countdown timer
     useEffect(() => {
@@ -190,11 +210,10 @@ export default function ResultPage() {
                             type="button"
                             onClick={() => isPremium && router.push("/dashboard")}
                             disabled={!isPremium}
-                            className={`relative w-full rounded-xl border p-5 overflow-hidden group text-left ${
-                                isPremium
+                            className={`relative w-full rounded-xl border p-5 overflow-hidden group text-left ${isPremium
                                     ? "border-emerald-500/30 bg-emerald-900/10 cursor-pointer"
                                     : "border-indigo-500/30 bg-indigo-900/10 cursor-not-allowed"
-                            }`}
+                                }`}
                         >
                             <div className={`absolute inset-0 z-10 flex items-center justify-center ${isPremium ? "bg-black/20 backdrop-blur-[1px]" : "bg-black/40 backdrop-blur-[2px]"}`}>
                                 <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-white shadow-lg ${isPremium ? "bg-emerald-600/90 shadow-emerald-500/20" : "bg-indigo-600/90 shadow-indigo-500/20"}`}>
@@ -292,7 +311,7 @@ export default function ResultPage() {
                         {copied ? "Link copied!" : "Share Analysis Result"}
                     </button>
                     <div className="h-4" />
-                    <a href="/" className="text-xs text-[var(--text-muted)] hover:text-white">Run another analysis</a>
+                    <Link href="/" className="text-xs text-[var(--text-muted)] hover:text-white">Run another analysis</Link>
                 </div>
 
             </main>
