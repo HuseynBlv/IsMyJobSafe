@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
@@ -24,7 +24,7 @@ const features = {
     ],
 };
 
-export default function UpgradePage() {
+function UpgradeView() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [sessionLoading, setSessionLoading] = useState(true);
@@ -301,5 +301,20 @@ export default function UpgradePage() {
                 </p>
             </main>
         </div>
+    );
+}
+
+export default function UpgradePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-dvh flex flex-col hero-glow">
+                <Navbar />
+                <main className="flex-1 flex items-center justify-center">
+                    <span className="loading loading-spinner text-indigo-400"></span>
+                </main>
+            </div>
+        }>
+            <UpgradeView />
+        </Suspense>
     );
 }
