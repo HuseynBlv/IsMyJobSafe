@@ -237,7 +237,7 @@ export default function UpgradePage() {
                                 <ul className="flex flex-col gap-2.5 flex-1">
                                     {features.free.map((feature) => (
                                         <li key={feature} className="flex items-center gap-2.5 text-sm text-white/70">
-                                            <span className="text-emerald-400 shrink-0">OK</span>
+                                            <span className="text-emerald-400 shrink-0">✓</span>
                                             {feature}
                                         </li>
                                     ))}
@@ -270,7 +270,7 @@ export default function UpgradePage() {
                                 <ul className="flex flex-col gap-2.5 flex-1 relative">
                                     {features.pro.map((feature) => (
                                         <li key={feature} className="flex items-center gap-2.5 text-sm text-white/80">
-                                            <span className="text-indigo-300 shrink-0">OK</span>
+                                            <span className="text-indigo-300 shrink-0">✓</span>
                                             {feature}
                                         </li>
                                     ))}
