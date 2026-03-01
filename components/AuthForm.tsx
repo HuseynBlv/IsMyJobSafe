@@ -179,7 +179,7 @@ export default function AuthForm({ mode }: Props) {
                                 className="flex items-start gap-3 rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-4"
                             >
                                 <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-200">
-                                    OK
+                                    ✓
                                 </span>
                                 <p className="text-sm leading-6 text-white/70">{benefit}</p>
                             </div>
