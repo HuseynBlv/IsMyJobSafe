@@ -63,9 +63,11 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const successUrl =
-        env.LEMON_SQUEEZY_SUCCESS_URL ||
-        new URL("/payment/success", request.url).toString();
+    const successUrl = new URL(
+        env.LEMON_SQUEEZY_SUCCESS_URL || "/payment/success",
+        request.url
+    );
+    successUrl.searchParams.set("analysisId", analysisId);
 
     const payload = {
         data: {
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
                     embed: false,
                 },
                 product_options: {
-                    redirect_url: successUrl,
+                    redirect_url: successUrl.toString(),
                 },
                 test_mode: env.LEMON_SQUEEZY_CHECKOUT_TEST_MODE,
             },

@@ -3,7 +3,6 @@
 import { useState, useRef, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import type { AnalysisResult } from "@/types/analysis";
 
 const PLACEHOLDER = `Senior Backend Engineer at Acme Corp
 Led API development for payment processing platform (3M+ daily transactions)
@@ -43,12 +42,12 @@ export default function Home() {
         return;
       }
 
-      const result: AnalysisResult = json.data;
-      sessionStorage.setItem("ismyjobsafe_result", JSON.stringify(result));
-      if (json.analysisId) {
-        sessionStorage.setItem("ismyjobsafe_analysis_id", json.analysisId);
+      if (!json.analysisId) {
+        setError("Your analysis finished, but we couldn't save it. Please try again.");
+        return;
       }
-      router.push("/result");
+
+      router.push(`/result?analysisId=${encodeURIComponent(json.analysisId)}`);
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {

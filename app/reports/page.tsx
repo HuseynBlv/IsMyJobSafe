@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import type { AnalysisResult } from "@/types/analysis";
 
 interface StoredReport {
     id: string;
     analysisId: string;
     paymentId: string;
     createdAt: string;
-    reportData: AnalysisResult;
+    replaceabilityScore: number | null;
+    automationRisk: string | null;
 }
 
 export default function ReportsPage() {
@@ -75,9 +75,7 @@ export default function ReportsPage() {
     }, [router]);
 
     function openReport(report: StoredReport) {
-        sessionStorage.setItem("ismyjobsafe_analysis_id", report.analysisId);
-        sessionStorage.setItem("ismyjobsafe_result", JSON.stringify(report.reportData));
-        router.push("/dashboard");
+        router.push(`/dashboard?analysisId=${encodeURIComponent(report.analysisId)}`);
     }
 
     return (
@@ -154,7 +152,7 @@ export default function ReportsPage() {
                                             Replaceability
                                         </p>
                                         <p className="text-sm text-white/85">
-                                            {report.reportData.replaceability_score}/100
+                                            {report.replaceabilityScore ?? "--"}/100
                                         </p>
                                     </div>
                                     <div>
@@ -162,7 +160,7 @@ export default function ReportsPage() {
                                             Automation Risk
                                         </p>
                                         <p className="text-sm text-white/85 capitalize">
-                                            {report.reportData.automation_risk}
+                                            {report.automationRisk ?? "--"}
                                         </p>
                                     </div>
                                     <div>

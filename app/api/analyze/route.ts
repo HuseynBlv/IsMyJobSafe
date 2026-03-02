@@ -68,7 +68,13 @@ export async function POST(request: NextRequest) {
         analysisId = analysisDoc._id.toString();
     } catch (dbError) {
         console.error("[analyze] Failed to save analysis to DB:", dbError);
-        // We can swallow the error and still return the result to the user
+        return NextResponse.json(
+            {
+                success: false,
+                error: "We couldn't save your analysis. Please try again.",
+            },
+            { status: 500 }
+        );
     }
 
     return NextResponse.json({ success: true, data: outcome.data, analysisId }, { status: 200 });

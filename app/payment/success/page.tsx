@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
 const POLL_INTERVAL_MS = 2000;
@@ -12,12 +12,13 @@ export default function PaymentSuccessPage() {
     const [error, setError] = useState<string | null>(null);
     const [secondsLeft, setSecondsLeft] = useState(Math.ceil(MAX_WAIT_MS / 1000));
     const [checkingSession, setCheckingSession] = useState(true);
+    const searchParams = useSearchParams();
+    const analysisId = searchParams.get("analysisId")?.trim() ?? "";
 
     useEffect(() => {
         let active = true;
         let intervalId: number | null = null;
         let countdownId: number | null = null;
-        const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
 
         async function load() {
             try {
@@ -29,7 +30,10 @@ export default function PaymentSuccessPage() {
                 }
 
                 if (!sessionRes.ok || !sessionData.authenticated) {
-                    router.replace("/login?next=/payment/success");
+                    const nextPath = analysisId
+                        ? `/payment/success?analysisId=${encodeURIComponent(analysisId)}`
+                        : "/payment/success";
+                    router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
                     return;
                 }
 
@@ -74,7 +78,7 @@ export default function PaymentSuccessPage() {
                             if (countdownId) {
                                 window.clearInterval(countdownId);
                             }
-                            router.replace("/dashboard");
+                            router.replace(`/dashboard?analysisId=${encodeURIComponent(currentAnalysisId)}`);
                             return;
                         }
 
@@ -127,7 +131,7 @@ export default function PaymentSuccessPage() {
                 window.clearInterval(countdownId);
             }
         };
-    }, [router]);
+    }, [analysisId, router]);
 
     return (
         <div className="min-h-dvh flex flex-col hero-glow">

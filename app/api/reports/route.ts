@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         $or: [{ userId: user.id }, { userEmail: user.email }],
     })
         .sort({ createdAt: -1 })
-        .select("_id sourceAnalysisId reportData paymentId createdAt")
+        .select("_id sourceAnalysisId paymentId createdAt reportData")
         .lean();
 
     return NextResponse.json({
@@ -29,7 +29,14 @@ export async function GET(request: NextRequest) {
             analysisId: report.sourceAnalysisId.toString(),
             paymentId: report.paymentId,
             createdAt: report.createdAt,
-            reportData: report.reportData,
+            replaceabilityScore:
+                typeof report.reportData?.replaceability_score === "number"
+                    ? report.reportData.replaceability_score
+                    : null,
+            automationRisk:
+                typeof report.reportData?.automation_risk === "string"
+                    ? report.reportData.automation_risk
+                    : null,
         })),
     });
 }

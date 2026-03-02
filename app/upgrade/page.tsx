@@ -36,10 +36,13 @@ function UpgradeView() {
     const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
     const purchased = searchParams.get("checkout") === "success";
+    const currentAnalysisId = searchParams.get("analysisId")?.trim() || null;
+    const upgradeHref = currentAnalysisId
+        ? `/upgrade?analysisId=${encodeURIComponent(currentAnalysisId)}`
+        : "/upgrade";
 
     useEffect(() => {
         let active = true;
-        const currentAnalysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
         setAnalysisId(currentAnalysisId);
 
         async function loadSession() {
@@ -91,7 +94,7 @@ function UpgradeView() {
         return () => {
             active = false;
         };
-    }, []);
+    }, [currentAnalysisId]);
 
     async function handleLemonCheckoutClick() {
         if (!analysisId) {
@@ -168,13 +171,13 @@ function UpgradeView() {
 
                             <div className="rounded-3xl border border-white/8 bg-white/[0.04] p-5 sm:p-6 flex flex-col gap-4">
                                 <Link
-                                    href="/signup?next=/upgrade&reason=checkout"
+                                    href={`/signup?next=${encodeURIComponent(upgradeHref)}&reason=checkout`}
                                     className="btn h-12 rounded-2xl border-none bg-gradient-to-r from-indigo-500 to-cyan-500 text-sm font-semibold text-white shadow-[0_18px_50px_-18px_rgba(59,130,246,0.7)]"
                                 >
                                     Create Account To Continue
                                 </Link>
                                 <Link
-                                    href="/login?next=/upgrade&reason=checkout"
+                                    href={`/login?next=${encodeURIComponent(upgradeHref)}&reason=checkout`}
                                     className="btn h-12 rounded-2xl border border-white/10 bg-white/[0.03] text-sm font-semibold text-white/80 hover:bg-white/[0.08]"
                                 >
                                     I Already Have An Account
@@ -207,7 +210,7 @@ function UpgradeView() {
                         <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
                             <button
                                 type="button"
-                                onClick={() => router.push("/dashboard")}
+                                onClick={() => router.push(`/dashboard?analysisId=${encodeURIComponent(analysisId)}`)}
                                 className="btn h-11 rounded-2xl border-none bg-emerald-500 text-sm font-semibold text-white hover:bg-emerald-400"
                             >
                                 Open Premium Dashboard

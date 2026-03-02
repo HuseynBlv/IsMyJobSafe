@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import ScoreMeter from "@/components/ScoreMeter";
 import RiskBadge from "@/components/RiskBadge";
@@ -19,52 +19,83 @@ function getUrgencyTime() {
 }
 
 export default function ResultPage() {
-    const [result] = useState<AnalysisResult | null>(() => {
-        if (typeof window === "undefined") {
-            return null;
-        }
-
-        const raw = sessionStorage.getItem("ismyjobsafe_result");
-        if (!raw) {
-            return null;
-        }
-
-        try {
-            return JSON.parse(raw) as AnalysisResult;
-        } catch {
-            return null;
-        }
-    });
+    const [result, setResult] = useState<AnalysisResult | null>(null);
+    const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
     const [timeLeft, setTimeLeft] = useState("");
     const [isPremium, setIsPremium] = useState(false);
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const analysisId = searchParams.get("analysisId")?.trim() ?? "";
 
     useEffect(() => {
-        if (!result) {
+        if (!analysisId) {
             router.replace("/");
             return;
         }
 
-        const currentAnalysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
-        if (currentAnalysisId) {
-            fetch("/api/auth/session", { cache: "no-store" })
-                .then((response) => response.json())
-                .then((session) => {
-                    if (!session.authenticated) {
+        let active = true;
+
+        async function loadAnalysis() {
+            setLoading(true);
+
+            try {
+                const analysisRes = await fetch(
+                    `/api/analysis/${encodeURIComponent(analysisId)}`,
+                    { cache: "no-store" }
+                );
+                const analysisData = await analysisRes.json();
+
+                if (!active) {
+                    return;
+                }
+
+                if (!analysisRes.ok || !analysisData.success) {
+                    router.replace("/");
+                    return;
+                }
+
+                setResult(analysisData.analysis.result as AnalysisResult);
+
+                try {
+                    const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
+                    const session = await sessionRes.json();
+
+                    if (!active || !session.authenticated) {
                         return;
                     }
 
-                    return fetch(
-                        `/api/subscription/status?analysisId=${encodeURIComponent(currentAnalysisId)}`,
+                    const statusRes = await fetch(
+                        `/api/subscription/status?analysisId=${encodeURIComponent(analysisId)}`,
                         { cache: "no-store" }
-                    )
-                        .then((response) => response.json())
-                        .then((status) => setIsPremium(status.active === true));
-                })
-                .catch(() => { });
+                    );
+                    const status = await statusRes.json();
+
+                    if (active) {
+                        setIsPremium(status.active === true);
+                    }
+                } catch {
+                    if (active) {
+                        setIsPremium(false);
+                    }
+                }
+            } catch {
+                if (active) {
+                    router.replace("/");
+                }
+            } finally {
+                if (active) {
+                    setLoading(false);
+                }
+            }
         }
-    }, [result, router]);
+
+        void loadAnalysis();
+
+        return () => {
+            active = false;
+        };
+    }, [analysisId, router]);
 
     // Simple countdown timer
     useEffect(() => {
@@ -88,7 +119,7 @@ export default function ResultPage() {
         if (!result) return;
         const text = `My AI replaceability score: ${result.replaceability_score}/100 (${result.automation_risk} risk) — via IsMyJobSafe`;
         navigator.clipboard
-            .writeText(`${text}\n${window.location.origin}`)
+            .writeText(`${text}\n${window.location.origin}/result?analysisId=${encodeURIComponent(analysisId)}`)
             .then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2500);
@@ -96,7 +127,7 @@ export default function ResultPage() {
             .catch(() => { });
     }
 
-    if (!result) {
+    if (loading || !result) {
         return (
             <div className="min-h-dvh flex items-center justify-center hero-glow">
                 <span className="loading loading-spinner loading-lg text-indigo-400" />
@@ -208,7 +239,7 @@ export default function ResultPage() {
                         {/* Specific Locked Hook */}
                         <button
                             type="button"
-                            onClick={() => isPremium && router.push("/dashboard")}
+                            onClick={() => isPremium && router.push(`/dashboard?analysisId=${encodeURIComponent(analysisId)}`)}
                             disabled={!isPremium}
                             className={`relative w-full rounded-xl border p-5 overflow-hidden group text-left ${isPremium
                                     ? "border-emerald-500/30 bg-emerald-900/10 cursor-pointer"
@@ -253,25 +284,25 @@ export default function ResultPage() {
                             title="12-Month Career Protection Plan"
                             description="Step-by-step timeline to immunize your role."
                             unlocked={isPremium}
-                            onClick={() => router.push("/dashboard")}
+                            onClick={() => router.push(`/dashboard?analysisId=${encodeURIComponent(analysisId)}`)}
                         />
                         <LockedBlurCard
                             title="Salary Growth Projection"
                             description="AI impact on your compensation trajectory."
                             unlocked={isPremium}
-                            onClick={() => router.push("/dashboard")}
+                            onClick={() => router.push(`/dashboard?analysisId=${encodeURIComponent(analysisId)}`)}
                         />
                         <LockedBlurCard
                             title="AI Exposure Simulation"
                             description="Scenario analysis for your specific daily tasks."
                             unlocked={isPremium}
-                            onClick={() => router.push("/dashboard")}
+                            onClick={() => router.push(`/dashboard?analysisId=${encodeURIComponent(analysisId)}`)}
                         />
                         <LockedBlurCard
                             title="Recruiter Market Comparison"
                             description="How you stack up against 5,000+ peers."
                             unlocked={isPremium}
-                            onClick={() => router.push("/dashboard")}
+                            onClick={() => router.push(`/dashboard?analysisId=${encodeURIComponent(analysisId)}`)}
                         />
                     </div>
                 </div>
@@ -281,7 +312,7 @@ export default function ResultPage() {
                     <div className="absolute inset-0 bg-indigo-500/20 blur-2xl transform scale-y-150 rounded-full opacity-60 pointer-events-none" />
                     {isPremium ? (
                         <button
-                            onClick={() => router.push("/dashboard")}
+                            onClick={() => router.push(`/dashboard?analysisId=${encodeURIComponent(analysisId)}`)}
                             className="relative w-full h-14 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-lg shadow-[0_0_40px_-10px_rgba(16,185,129,0.5)] border border-white/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
                         >
                             <span>🛡️ View My Protection Plan</span>
@@ -291,7 +322,7 @@ export default function ResultPage() {
                         </button>
                     ) : (
                         <button
-                            onClick={() => router.push("/upgrade")}
+                            onClick={() => router.push(`/upgrade?analysisId=${encodeURIComponent(analysisId)}`)}
                             className="relative w-full h-14 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-lg shadow-[0_0_40px_-10px_rgba(99,102,241,0.6)] border border-white/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
                         >
                             <span>Get My Career Protection Plan</span>

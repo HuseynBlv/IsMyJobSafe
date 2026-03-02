@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import dynamic from "next/dynamic";
 import type { SalaryScenario } from "@/components/SalaryChart";
@@ -92,24 +92,28 @@ export default function DashboardPage() {
     const [compTriggered, setCompTriggered] = useState(false);
 
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const analysisId = searchParams.get("analysisId")?.trim() ?? "";
 
     // ── Load protection plan on mount ─────────────────────────────────────────
     useEffect(() => {
         async function fetchPlan() {
-            const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
-            if (!analysisId) { router.replace("/"); return; }
+            if (!analysisId) { router.replace("/reports"); return; }
 
             try {
                 const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
                 const sessionData = await sessionRes.json();
-                if (!sessionRes.ok || !sessionData.authenticated) { router.replace(`/login?next=${encodeURIComponent("/dashboard")}`); return; }
+                if (!sessionRes.ok || !sessionData.authenticated) {
+                    router.replace(`/login?next=${encodeURIComponent(`/dashboard?analysisId=${analysisId}`)}`);
+                    return;
+                }
 
                 const { active } = await fetch(
                     `/api/subscription/status?analysisId=${encodeURIComponent(analysisId)}`,
                     { cache: "no-store" }
                 ).then((response) => response.json());
-                if (!active) { router.replace("/upgrade"); return; }
-            } catch { router.replace("/upgrade"); return; }
+                if (!active) { router.replace(`/upgrade?analysisId=${encodeURIComponent(analysisId)}`); return; }
+            } catch { router.replace(`/upgrade?analysisId=${encodeURIComponent(analysisId)}`); return; }
 
             try {
                 const res = await fetch("/api/premium/protection-plan", {
@@ -145,7 +149,7 @@ export default function DashboardPage() {
             }
         }
         fetchPlan();
-    }, [router]);
+    }, [analysisId, router]);
 
     // ── Salary projection submit ───────────────────────────────────────────────
     async function handleSalarySubmit(e: React.FormEvent) {
@@ -153,7 +157,6 @@ export default function DashboardPage() {
         const salaryNum = parseFloat(salary.replace(/,/g, ""));
         if (!salaryNum || salaryNum <= 0) { setSalaryError("Please enter a valid salary."); return; }
 
-        const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
         if (!analysisId) return;
 
         setSalaryLoading(true);
@@ -485,7 +488,6 @@ export default function DashboardPage() {
                             onClick={async () => {
                                 setCompTriggered(true);
                                 setCompLoading(true);
-                                const analysisId = sessionStorage.getItem("ismyjobsafe_analysis_id");
                                 if (!analysisId) return;
                                 try {
                                     const res = await fetch("/api/premium/market-comparison", {
