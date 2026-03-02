@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import dynamic from "next/dynamic";
@@ -65,7 +65,7 @@ function PlanRow({ label, value }: { label: string; value: string }) {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-export default function DashboardPage() {
+function DashboardView() {
     // Protection plan state
     const [plan, setPlan] = useState<QuarterPlan[] | null>(null);
     const [planLoading, setPlanLoading] = useState(true);
@@ -609,5 +609,22 @@ export default function DashboardPage() {
 
             </main>
         </div>
+    );
+}
+
+export default function DashboardPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-dvh flex flex-col hero-glow">
+                    <Navbar />
+                    <main className="flex-1 flex items-center justify-center">
+                        <span className="loading loading-spinner text-indigo-400" />
+                    </main>
+                </div>
+            }
+        >
+            <DashboardView />
+        </Suspense>
     );
 }

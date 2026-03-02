@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_WAIT_MS = 30000;
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessView() {
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
     const [secondsLeft, setSecondsLeft] = useState(Math.ceil(MAX_WAIT_MS / 1000));
@@ -176,5 +176,22 @@ export default function PaymentSuccessPage() {
                 </div>
             </main>
         </div>
+    );
+}
+
+export default function PaymentSuccessPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-dvh flex flex-col hero-glow">
+                    <Navbar />
+                    <main className="flex-1 flex items-center justify-center">
+                        <span className="loading loading-spinner text-emerald-300" />
+                    </main>
+                </div>
+            }
+        >
+            <PaymentSuccessView />
+        </Suspense>
     );
 }

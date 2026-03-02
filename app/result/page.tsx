@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import ScoreMeter from "@/components/ScoreMeter";
@@ -18,7 +18,7 @@ function getUrgencyTime() {
     return tomorrow.getTime();
 }
 
-export default function ResultPage() {
+function ResultView() {
     const [result, setResult] = useState<AnalysisResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
@@ -347,5 +347,22 @@ export default function ResultPage() {
 
             </main>
         </div>
+    );
+}
+
+export default function ResultPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-dvh flex flex-col hero-glow">
+                    <Navbar />
+                    <main className="flex-1 flex items-center justify-center">
+                        <span className="loading loading-spinner text-indigo-400" />
+                    </main>
+                </div>
+            }
+        >
+            <ResultView />
+        </Suspense>
     );
 }
