@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useDeferredValue, useEffect, useState } from "react";
+import { Suspense, startTransition, useDeferredValue, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import dynamic from "next/dynamic";
@@ -64,6 +64,77 @@ function PlanRow({ label, value }: { label: string; value: string }) {
     );
 }
 
+type SalaryPresetKey = "conservative" | "balanced" | "aggressive";
+
+const SALARY_PRESETS: Record<SalaryPresetKey, Omit<SalaryControls, "salaryAnchor">> = {
+    conservative: {
+        marketOutlook: -8,
+        aiPressure: 68,
+        reskillingCommitment: 30,
+        promotionLift: 4,
+    },
+    balanced: {
+        marketOutlook: 0,
+        aiPressure: 50,
+        reskillingCommitment: 50,
+        promotionLift: 10,
+    },
+    aggressive: {
+        marketOutlook: 10,
+        aiPressure: 38,
+        reskillingCommitment: 78,
+        promotionLift: 18,
+    },
+};
+
+function marketOutlookLabel(value: number) {
+    if (value <= -10) return "Cooling";
+    if (value >= 10) return "Hot";
+    return "Balanced";
+}
+
+function aiPressureLabel(value: number) {
+    if (value <= 35) return "Low";
+    if (value >= 65) return "High";
+    return "Moderate";
+}
+
+function reskillingLabel(value: number) {
+    if (value <= 35) return "Passive";
+    if (value >= 70) return "Aggressive";
+    return "Active";
+}
+
+function promotionLabel(value: number) {
+    if (value <= 6) return "Modest";
+    if (value >= 18) return "Fast-track";
+    return "Healthy";
+}
+
+function marketOutlookDetail(value: number) {
+    if (value <= -10) return "Budget pressure slows compensation growth.";
+    if (value >= 10) return "Strong demand supports faster salary expansion.";
+    return "Steady demand keeps compensation growth near baseline.";
+}
+
+function aiPressureDetail(value: number) {
+    if (value <= 35) return "Automation pressure stays manageable for most roles.";
+    if (value >= 65) return "Higher automation pressure compresses exposed paths faster.";
+    return "Automation risk is material, but still manageable with positioning.";
+}
+
+function reskillingDetail(value: number) {
+    if (value <= 35) return "Minimal skill investment limits upside beyond baseline.";
+    if (value >= 70) return "Aggressive upskilling drives stronger separation over time.";
+    return "Consistent reskilling improves resilience without a major pivot.";
+}
+
+function promotionDetail(value: number) {
+    if (value <= 6) return "Progression stays incremental with smaller compensation jumps.";
+    if (value >= 18) return "A larger jump assumes stronger leverage or a title step-up.";
+    return "A realistic promotion lift keeps the path optimistic but credible.";
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function DashboardView() {
     // Protection plan state
@@ -80,6 +151,7 @@ function DashboardView() {
     const [scenarios, setScenarios] = useState<SalaryScenario[] | null>(null);
     const [salaryCached, setSalaryCached] = useState(false);
     const [salaryBase, setSalaryBase] = useState<number | null>(null);
+    const [activeSalaryPreset, setActiveSalaryPreset] = useState<SalaryPresetKey | "custom">("balanced");
     const [salaryControls, setSalaryControls] = useState<SalaryControls>({
         salaryAnchor: 85_000,
         marketOutlook: 0,
@@ -103,6 +175,38 @@ function DashboardView() {
     const searchParams = useSearchParams();
     const analysisId = searchParams.get("analysisId")?.trim() ?? "";
     const deferredSalaryControls = useDeferredValue(salaryControls);
+
+    function updateSalaryControl<K extends keyof SalaryControls>(key: K, value: SalaryControls[K]) {
+        startTransition(() => {
+            setActiveSalaryPreset("custom");
+            setSalaryControls((current) => ({
+                ...current,
+                [key]: value,
+            }));
+        });
+    }
+
+    function applySalaryPreset(preset: SalaryPresetKey) {
+        const anchor = salaryBase ?? salaryControls.salaryAnchor;
+        startTransition(() => {
+            setActiveSalaryPreset(preset);
+            setSalaryControls({
+                salaryAnchor: anchor,
+                ...SALARY_PRESETS[preset],
+            });
+        });
+    }
+
+    function resetSalaryControls() {
+        const anchor = salaryBase ?? 85_000;
+        startTransition(() => {
+            setActiveSalaryPreset("balanced");
+            setSalaryControls({
+                salaryAnchor: anchor,
+                ...SALARY_PRESETS.balanced,
+            });
+        });
+    }
 
     // ── Load protection plan on mount ─────────────────────────────────────────
     useEffect(() => {
@@ -187,6 +291,7 @@ function DashboardView() {
                 reskillingCommitment: 50,
                 promotionLift: 10,
             });
+            setActiveSalaryPreset("balanced");
             setScenarios(data.scenarios);
             setSalaryCached(data.cached);
         } catch (err) {
@@ -397,13 +502,8 @@ function DashboardView() {
                                             setScenarios(null);
                                             setSalary("");
                                             setSalaryBase(null);
-                                            setSalaryControls({
-                                                salaryAnchor: 85_000,
-                                                marketOutlook: 0,
-                                                aiPressure: 50,
-                                                reskillingCommitment: 50,
-                                                promotionLift: 10,
-                                            });
+                                            setActiveSalaryPreset("balanced");
+                                            resetSalaryControls();
                                         }}
                                         className="text-[11px] text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
                                     >
@@ -412,142 +512,289 @@ function DashboardView() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 rounded-2xl border border-white/[0.06] bg-black/10 p-4 sm:p-5">
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex items-center justify-between">
-                                        <label htmlFor="salary-anchor" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
-                                            Current Salary Anchor
-                                        </label>
-                                        <span className="text-xs font-semibold tabular-nums text-white/75">
-                                            ${Math.round(deferredSalaryControls.salaryAnchor).toLocaleString()}
-                                        </span>
-                                    </div>
-                                    <input
-                                        id="salary-anchor"
-                                        type="range"
-                                        min={Math.max(30_000, Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 0.5))}
-                                        max={Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 2)}
-                                        step={1000}
-                                        value={salaryControls.salaryAnchor}
-                                        onChange={(event) =>
-                                            setSalaryControls((current) => ({
-                                                ...current,
-                                                salaryAnchor: Number(event.target.value),
-                                            }))
-                                        }
-                                        className="range range-sm range-primary"
-                                    />
-                                    <p className="text-[11px] text-white/35">Quickly stress-test the model at different salary anchors without refetching.</p>
-                                </div>
+                            <div className="rounded-3xl border border-white/[0.07] bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.18))] p-4 sm:p-5 flex flex-col gap-5">
+                                <div className="flex flex-col gap-5">
+                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                                        <div className="space-y-2">
+                                            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5">
+                                                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]" />
+                                                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
+                                                    Live Scenario Controls
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-white/85">
+                                                    Adjust the market, your strategy, and promotion assumptions in real time.
+                                                </p>
+                                                <p className="text-xs text-white/45 mt-1">
+                                                    The baseline AI scenarios stay fixed. These controls stress-test how each path behaves under different conditions.
+                                                </p>
+                                            </div>
+                                        </div>
 
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex items-center justify-between">
-                                        <label htmlFor="market-outlook" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
-                                            Market Outlook
-                                        </label>
-                                        <span className="text-xs font-semibold tabular-nums text-white/75">
-                                            {salaryControls.marketOutlook > 0 ? "+" : ""}{salaryControls.marketOutlook}%
-                                        </span>
-                                    </div>
-                                    <input
-                                        id="market-outlook"
-                                        type="range"
-                                        min={-20}
-                                        max={20}
-                                        step={1}
-                                        value={salaryControls.marketOutlook}
-                                        onChange={(event) =>
-                                            setSalaryControls((current) => ({
-                                                ...current,
-                                                marketOutlook: Number(event.target.value),
-                                            }))
-                                        }
-                                        className="range range-sm range-info"
-                                    />
-                                    <p className="text-[11px] text-white/35">Move this for a colder or hotter hiring market.</p>
-                                </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(["conservative", "balanced", "aggressive"] as SalaryPresetKey[]).map((preset) => {
+                                                const isActive = activeSalaryPreset === preset;
+                                                const toneClass =
+                                                    preset === "conservative"
+                                                        ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
+                                                        : preset === "balanced"
+                                                            ? "border-indigo-400/20 bg-indigo-400/10 text-indigo-200"
+                                                            : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
 
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex items-center justify-between">
-                                        <label htmlFor="ai-pressure" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
-                                            AI Pressure
-                                        </label>
-                                        <span className="text-xs font-semibold tabular-nums text-white/75">
-                                            {salaryControls.aiPressure}/100
-                                        </span>
+                                                return (
+                                                    <button
+                                                        key={preset}
+                                                        type="button"
+                                                        onClick={() => applySalaryPreset(preset)}
+                                                        className={`min-w-[8.75rem] rounded-2xl border px-4 py-2.5 text-left transition-colors ${
+                                                            isActive ? toneClass : "border-white/[0.08] bg-white/[0.03] text-white/65 hover:bg-white/[0.06]"
+                                                        }`}
+                                                    >
+                                                        <span className="block text-[10px] font-bold uppercase tracking-[0.18em]">
+                                                            {preset}
+                                                        </span>
+                                                        <span className="mt-1 block text-[11px] text-current/80 normal-case tracking-normal">
+                                                            {preset === "conservative"
+                                                                ? "Defensive assumptions"
+                                                                : preset === "balanced"
+                                                                    ? "Default outlook"
+                                                                    : "Upside stress test"}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                            <button
+                                                type="button"
+                                                onClick={resetSalaryControls}
+                                                className="rounded-2xl border border-white/[0.08] bg-transparent px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45 transition-colors hover:text-white/70"
+                                            >
+                                                Reset To Baseline
+                                            </button>
+                                        </div>
                                     </div>
-                                    <input
-                                        id="ai-pressure"
-                                        type="range"
-                                        min={0}
-                                        max={100}
-                                        step={1}
-                                        value={salaryControls.aiPressure}
-                                        onChange={(event) =>
-                                            setSalaryControls((current) => ({
-                                                ...current,
-                                                aiPressure: Number(event.target.value),
-                                            }))
-                                        }
-                                        className="range range-sm range-error"
-                                    />
-                                    <p className="text-[11px] text-white/35">Higher values compress the exposed paths faster.</p>
-                                </div>
 
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex items-center justify-between">
-                                        <label htmlFor="reskilling-commitment" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
-                                            Reskilling Commitment
-                                        </label>
-                                        <span className="text-xs font-semibold tabular-nums text-white/75">
-                                            {salaryControls.reskillingCommitment}/100
-                                        </span>
+                                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-5">
+                                        <div className="rounded-2xl border border-indigo-400/15 bg-indigo-400/[0.08] px-4 py-3 xl:col-span-1">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-100/55">Anchor Salary</p>
+                                            <p className="mt-2 text-lg font-semibold text-white tabular-nums">
+                                                ${Math.round(deferredSalaryControls.salaryAnchor).toLocaleString()}
+                                            </p>
+                                            <p className="mt-1 text-[11px] text-white/45">The pay level used to stress-test every scenario.</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Market</p>
+                                            <p className="mt-2 text-sm font-semibold text-white">{marketOutlookLabel(deferredSalaryControls.marketOutlook)}</p>
+                                            <p className="mt-1 text-[11px] text-white/40">{marketOutlookDetail(deferredSalaryControls.marketOutlook)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">AI Pressure</p>
+                                            <p className="mt-2 text-sm font-semibold text-white">{aiPressureLabel(deferredSalaryControls.aiPressure)}</p>
+                                            <p className="mt-1 text-[11px] text-white/40">{aiPressureDetail(deferredSalaryControls.aiPressure)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Reskilling</p>
+                                            <p className="mt-2 text-sm font-semibold text-white">{reskillingLabel(deferredSalaryControls.reskillingCommitment)}</p>
+                                            <p className="mt-1 text-[11px] text-white/40">{reskillingDetail(deferredSalaryControls.reskillingCommitment)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Promotion</p>
+                                            <p className="mt-2 text-sm font-semibold text-white">{promotionLabel(deferredSalaryControls.promotionLift)}</p>
+                                            <p className="mt-1 text-[11px] text-white/40">{promotionDetail(deferredSalaryControls.promotionLift)}</p>
+                                        </div>
                                     </div>
-                                    <input
-                                        id="reskilling-commitment"
-                                        type="range"
-                                        min={0}
-                                        max={100}
-                                        step={1}
-                                        value={salaryControls.reskillingCommitment}
-                                        onChange={(event) =>
-                                            setSalaryControls((current) => ({
-                                                ...current,
-                                                reskillingCommitment: Number(event.target.value),
-                                            }))
-                                        }
-                                        className="range range-sm range-success"
-                                    />
-                                    <p className="text-[11px] text-white/35">Higher values boost the upskilling and pivot paths the most.</p>
-                                </div>
 
-                                <div className="flex flex-col gap-2 lg:col-span-2">
-                                    <div className="flex items-center justify-between">
-                                        <label htmlFor="promotion-lift" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
-                                            Promotion Lift
-                                        </label>
-                                        <span className="text-xs font-semibold tabular-nums text-white/75">
-                                            +{salaryControls.promotionLift}%
-                                        </span>
-                                    </div>
-                                    <input
-                                        id="promotion-lift"
-                                        type="range"
-                                        min={0}
-                                        max={30}
-                                        step={1}
-                                        value={salaryControls.promotionLift}
-                                        onChange={(event) =>
-                                            setSalaryControls((current) => ({
-                                                ...current,
-                                                promotionLift: Number(event.target.value),
-                                            }))
-                                        }
-                                        className="range range-sm range-warning"
-                                    />
-                                    <div className="flex items-center justify-between text-[11px] text-white/35">
-                                        <span>Slower promotion path</span>
-                                        <span>Faster promotion path</span>
+                                    <div className="grid grid-cols-1 xl:grid-cols-[1.05fr_1fr] gap-4">
+                                        <div className="rounded-3xl border border-indigo-400/10 bg-[linear-gradient(180deg,rgba(79,70,229,0.09),rgba(10,10,24,0.45))] p-5 flex flex-col gap-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-100/45">
+                                                        Compensation Assumptions
+                                                    </p>
+                                                    <p className="mt-2 text-sm font-semibold text-white/85">
+                                                        Tune the salary baseline and the size of a future step-up.
+                                                    </p>
+                                                </div>
+                                                <span className="rounded-full border border-indigo-300/10 bg-indigo-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-indigo-100/70">
+                                                    Stress test
+                                                </span>
+                                            </div>
+
+                                            <div className="rounded-2xl border border-white/[0.05] bg-black/10 p-4 flex flex-col gap-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <label htmlFor="salary-anchor" className="text-[11px] font-semibold text-white/75">
+                                                        Current salary anchor
+                                                    </label>
+                                                    <div className="text-right">
+                                                        <span className="block text-sm font-semibold tabular-nums text-white">
+                                                            ${Math.round(deferredSalaryControls.salaryAnchor).toLocaleString()}
+                                                        </span>
+                                                        <span className="block text-[10px] uppercase tracking-widest text-white/30">
+                                                            Dynamic baseline
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    id="salary-anchor"
+                                                    type="range"
+                                                    min={Math.max(30_000, Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 0.5))}
+                                                    max={Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 2)}
+                                                    step={1000}
+                                                    value={salaryControls.salaryAnchor}
+                                                    onChange={(event) => updateSalaryControl("salaryAnchor", Number(event.target.value))}
+                                                    className="range range-sm range-primary"
+                                                />
+                                                <div className="flex items-center justify-between text-[11px] text-white/35">
+                                                    <span>${Math.max(30_000, Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 0.5)).toLocaleString()}</span>
+                                                    <span>${Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 2).toLocaleString()}</span>
+                                                </div>
+                                                <p className="text-[11px] text-white/35">
+                                                    Move the baseline up or down to see how the same career strategy performs at different pay levels.
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-2xl border border-white/[0.05] bg-black/10 p-4 flex flex-col gap-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <label htmlFor="promotion-lift" className="text-[11px] font-semibold text-white/75">
+                                                        Promotion lift
+                                                    </label>
+                                                    <div className="text-right">
+                                                        <span className="block text-sm font-semibold tabular-nums text-white">
+                                                            +{salaryControls.promotionLift}%
+                                                        </span>
+                                                        <span className="block text-[10px] uppercase tracking-widest text-white/30">
+                                                            {promotionLabel(salaryControls.promotionLift)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    id="promotion-lift"
+                                                    type="range"
+                                                    min={0}
+                                                    max={30}
+                                                    step={1}
+                                                    value={salaryControls.promotionLift}
+                                                    onChange={(event) => updateSalaryControl("promotionLift", Number(event.target.value))}
+                                                    className="range range-sm range-warning"
+                                                />
+                                                <div className="flex items-center justify-between text-[11px] text-white/35">
+                                                    <span>Incremental</span>
+                                                    <span>Fast-track</span>
+                                                </div>
+                                                <p className="text-[11px] text-white/35">{promotionDetail(salaryControls.promotionLift)}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-3xl border border-emerald-400/10 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(10,10,24,0.45))] p-5 flex flex-col gap-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-100/45">
+                                                        Market And Strategy
+                                                    </p>
+                                                    <p className="mt-2 text-sm font-semibold text-white/85">
+                                                        Pressure-test demand, automation intensity, and how hard you push your skill stack.
+                                                    </p>
+                                                </div>
+                                                <span className="rounded-full border border-emerald-300/10 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-emerald-100/70">
+                                                    Live
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 gap-4">
+                                                <div className="rounded-2xl border border-white/[0.05] bg-black/10 p-4 flex flex-col gap-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <label htmlFor="market-outlook" className="text-[11px] font-semibold text-white/75">
+                                                            Market outlook
+                                                        </label>
+                                                        <div className="text-right">
+                                                            <span className="block text-sm font-semibold tabular-nums text-white">
+                                                                {salaryControls.marketOutlook > 0 ? "+" : ""}{salaryControls.marketOutlook}%
+                                                            </span>
+                                                            <span className="block text-[10px] uppercase tracking-widest text-white/30">
+                                                                {marketOutlookLabel(salaryControls.marketOutlook)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        id="market-outlook"
+                                                        type="range"
+                                                        min={-20}
+                                                        max={20}
+                                                        step={1}
+                                                        value={salaryControls.marketOutlook}
+                                                        onChange={(event) => updateSalaryControl("marketOutlook", Number(event.target.value))}
+                                                        className="range range-sm range-info"
+                                                    />
+                                                    <div className="flex items-center justify-between text-[11px] text-white/35">
+                                                        <span>Cooling</span>
+                                                        <span>Hot</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-white/35">{marketOutlookDetail(salaryControls.marketOutlook)}</p>
+                                                </div>
+
+                                                <div className="rounded-2xl border border-white/[0.05] bg-black/10 p-4 flex flex-col gap-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <label htmlFor="ai-pressure" className="text-[11px] font-semibold text-white/75">
+                                                            AI pressure
+                                                        </label>
+                                                        <div className="text-right">
+                                                            <span className="block text-sm font-semibold tabular-nums text-white">
+                                                                {salaryControls.aiPressure}/100
+                                                            </span>
+                                                            <span className="block text-[10px] uppercase tracking-widest text-white/30">
+                                                                {aiPressureLabel(salaryControls.aiPressure)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        id="ai-pressure"
+                                                        type="range"
+                                                        min={0}
+                                                        max={100}
+                                                        step={1}
+                                                        value={salaryControls.aiPressure}
+                                                        onChange={(event) => updateSalaryControl("aiPressure", Number(event.target.value))}
+                                                        className="range range-sm range-error"
+                                                    />
+                                                    <div className="flex items-center justify-between text-[11px] text-white/35">
+                                                        <span>Contained</span>
+                                                        <span>High disruption</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-white/35">{aiPressureDetail(salaryControls.aiPressure)}</p>
+                                                </div>
+
+                                                <div className="rounded-2xl border border-white/[0.05] bg-black/10 p-4 flex flex-col gap-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <label htmlFor="reskilling-commitment" className="text-[11px] font-semibold text-white/75">
+                                                            Reskilling commitment
+                                                        </label>
+                                                        <div className="text-right">
+                                                            <span className="block text-sm font-semibold tabular-nums text-white">
+                                                                {salaryControls.reskillingCommitment}/100
+                                                            </span>
+                                                            <span className="block text-[10px] uppercase tracking-widest text-white/30">
+                                                                {reskillingLabel(salaryControls.reskillingCommitment)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        id="reskilling-commitment"
+                                                        type="range"
+                                                        min={0}
+                                                        max={100}
+                                                        step={1}
+                                                        value={salaryControls.reskillingCommitment}
+                                                        onChange={(event) => updateSalaryControl("reskillingCommitment", Number(event.target.value))}
+                                                        className="range range-sm range-success"
+                                                    />
+                                                    <div className="flex items-center justify-between text-[11px] text-white/35">
+                                                        <span>Passive</span>
+                                                        <span>Aggressive</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-white/35">{reskillingDetail(salaryControls.reskillingCommitment)}</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
