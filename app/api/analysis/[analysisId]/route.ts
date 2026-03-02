@@ -21,7 +21,7 @@ export async function GET(_request: NextRequest, context: Context) {
     await connectDB();
 
     const analysis = await Analysis.findById(analysisId)
-        .select("_id result createdAt")
+        .select("_id result createdAt targetRole")
         .lean();
 
     if (!analysis) {
@@ -37,6 +37,7 @@ export async function GET(_request: NextRequest, context: Context) {
             id: analysis._id.toString(),
             result: analysis.result,
             createdAt: analysis.createdAt,
+            targetRole: analysis.targetRole ?? null,
         },
     });
 }

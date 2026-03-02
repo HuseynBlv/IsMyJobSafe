@@ -19,6 +19,7 @@ export interface AnalysisResult {
 
 export interface AnalyzeRequest {
   profile: string; // raw profile text from the user
+  targetRole?: string;
 }
 
 export interface AnalyzeResponse {

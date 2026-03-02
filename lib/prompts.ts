@@ -55,7 +55,10 @@ This plan must directly address the user's weaknesses and recommended upgrades t
 Rules you MUST follow:
 1. Respond ONLY with a single valid JSON object. No markdown, no code fences, no commentary.
 2. Ensure each quarter builds conceptually on the previous one.
-3. Be concise. Action-oriented bullet points or short sentences.
+3. Be concise, but concrete. Every quarter must include specific actions, not generic advice.
+4. Each quarter must feel sequential: foundation first, then visible execution, then leverage, then market positioning.
+5. top_actions must contain exactly 3 items, each an action a person can complete in that quarter.
+6. estimated_impact must be exactly one of: "foundational", "medium", "high".
 
 JSON schema (all fields required):
 {
@@ -63,28 +66,42 @@ JSON schema (all fields required):
     {
       "quarter": 1,
       "objective": "<string>",
-      "skill_focus": "<string>",
-      "project_suggestion": "<string>",
-      "career_positioning": "<string>"
+      "why_this_matters": "<1-2 sentences tying this quarter to automation resistance>",
+      "top_actions": ["<string>", "<string>", "<string>"],
+      "measurable_outcome": "<specific milestone or proof point>",
+      "estimated_impact": "<foundational|medium|high>",
+      "career_positioning_move": "<one concrete positioning move>"
     }
   ]
 }`;
 
 export function buildPremiumPlanUserPrompt(
+  roleFocus: string,
+  profileText: string,
   score: number,
   risk: string,
   reasons: string[],
-  upgrades: string[]
+  upgrades: string[],
+  weakDimensions: string[]
 ): string {
+  const trimmedProfile = profileText.slice(0, 900);
   return `Based on the following career analysis:
+- Role Focus: ${roleFocus}
 - Replaceability Score: ${score}
 - Automation Risk: ${risk}
+- Weakest Dimensions / Pressure Points:
+  ${weakDimensions.map((item) => `- ${item}`).join("\n  ")}
 - Identified Weaknesses/Reasons:
   ${reasons.map((r) => `- ${r}`).join("\n  ")}
 - Recommended Skills & Upgrades:
   ${upgrades.map((u) => `- ${u}`).join("\n  ")}
+- Profile Context:
+${trimmedProfile}
 
-Generate a 12-month plan divided into 4 quarters to significantly reduce this person's replaceability.`;
+Generate a 12-month plan divided into 4 quarters to significantly reduce this person's replaceability.
+
+Anchor the plan to the role focus above. If the role focus is aspirational, bias the actions toward becoming credible for that target role while still reducing automation risk in the meantime.
+Use the weakest dimensions and automation pressure as the main drivers of prioritization.`;
 }
 
 // =============================================================================

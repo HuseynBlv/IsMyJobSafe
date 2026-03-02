@@ -69,14 +69,25 @@ export async function callLLM(profileText: string): Promise<string> {
 import { PREMIUM_PLAN_SYSTEM_PROMPT, buildPremiumPlanUserPrompt } from "@/lib/prompts";
 
 export async function callPremiumLLM(
+    roleFocus: string,
+    profileText: string,
     score: number,
     risk: string,
     reasons: string[],
-    upgrades: string[]
+    upgrades: string[],
+    weakDimensions: string[]
 ): Promise<string> {
     const userMessage = {
         role: "user" as const,
-        content: buildPremiumPlanUserPrompt(score, risk, reasons, upgrades),
+        content: buildPremiumPlanUserPrompt(
+            roleFocus,
+            profileText,
+            score,
+            risk,
+            reasons,
+            upgrades,
+            weakDimensions
+        ),
     };
 
     if (env.LLM_PROVIDER === "groq") {

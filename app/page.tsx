@@ -12,6 +12,7 @@ Stack: Python, PostgreSQL, Redis, AWS`;
 
 export default function Home() {
   const [profile, setProfile] = useState("");
+  const [targetRole, setTargetRole] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -32,7 +33,10 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: text }),
+        body: JSON.stringify({
+          profile: text,
+          targetRole: targetRole.trim() || undefined,
+        }),
       });
 
       const json = await res.json();
@@ -180,6 +184,25 @@ export default function Home() {
                 {profile.length.toLocaleString()} chars
               </span>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+            <label htmlFor="target-role-input" className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-2">
+              Role To Optimize For (Optional)
+            </label>
+            <input
+              id="target-role-input"
+              type="text"
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+              placeholder="Staff Backend Engineer, Product Manager, ML Engineer..."
+              maxLength={120}
+              disabled={loading}
+              className="w-full h-11 rounded-xl bg-white/[0.04] border border-[var(--border)] px-4 text-sm text-white/90 placeholder-[var(--text-muted)] focus:outline-none focus:border-indigo-500/40 transition-colors"
+            />
+            <p className="mt-2 text-xs text-[var(--text-muted)]">
+              Leave this blank to optimize the plan for your current role. Fill it in if you want the roadmap aimed at a role you want to move into.
+            </p>
           </div>
 
           {/* ── Error ── */}

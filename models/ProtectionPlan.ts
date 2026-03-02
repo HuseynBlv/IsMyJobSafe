@@ -8,6 +8,7 @@ const ProtectionPlanSchema = new mongoose.Schema(
             ref: "Analysis",
             required: true,
         },
+        planVersion: { type: Number, default: 2 },
         planJson: { type: mongoose.Schema.Types.Mixed, required: true },
     },
     { timestamps: true }

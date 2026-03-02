@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import dynamic from "next/dynamic";
 import type { SalaryControls, SalaryScenario } from "@/components/SalaryChart";
+import type { QuarterImpact, QuarterPlan } from "@/types/protection-plan";
 
 // Recharts uses browser APIs — load client-side only
 const SalaryChart = dynamic(() => import("@/components/SalaryChart"), { ssr: false });
@@ -32,15 +33,6 @@ interface MarketComparisonResult {
     positioning_advice: string;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface QuarterPlan {
-    quarter: 1 | 2 | 3 | 4;
-    objective: string;
-    skill_focus: string;
-    project_suggestion: string;
-    career_positioning: string;
-}
-
 const QUARTER_META = [
     { label: "Q1", theme: "Foundation", icon: "🧱", accent: "from-indigo-600 to-indigo-500", border: "border-indigo-500/30", glow: "shadow-indigo-500/20", badge: "bg-indigo-500/15 text-indigo-300", connector: "bg-indigo-500/40" },
     { label: "Q2", theme: "Upgrade", icon: "⚡", accent: "from-violet-600 to-violet-500", border: "border-violet-500/30", glow: "shadow-violet-500/20", badge: "bg-violet-500/15 text-violet-300", connector: "bg-violet-500/40" },
@@ -54,15 +46,6 @@ const COUNTRIES = [
     "United Arab Emirates", "India", "Brazil", "Mexico", "South Africa",
     "Japan", "South Korea", "New Zealand", "Ireland", "Portugal",
 ];
-
-function PlanRow({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">{label}</span>
-            <p className="text-sm text-white/85 leading-relaxed">{value}</p>
-        </div>
-    );
-}
 
 type SalaryPresetKey = "conservative" | "balanced" | "aggressive";
 
@@ -133,6 +116,27 @@ function promotionDetail(value: number) {
     if (value <= 6) return "Progression stays incremental with smaller compensation jumps.";
     if (value >= 18) return "A larger jump assumes stronger leverage or a title step-up.";
     return "A realistic promotion lift keeps the path optimistic but credible.";
+}
+
+function impactStyles(value: QuarterImpact) {
+    if (value === "high") {
+        return {
+            badge: "border-emerald-400/20 bg-emerald-400/12 text-emerald-200",
+            label: "High leverage",
+        };
+    }
+
+    if (value === "foundational") {
+        return {
+            badge: "border-amber-400/20 bg-amber-400/12 text-amber-200",
+            label: "Foundation",
+        };
+    }
+
+    return {
+        badge: "border-indigo-400/20 bg-indigo-400/12 text-indigo-200",
+        label: "Medium lift",
+    };
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -372,6 +376,7 @@ function DashboardView() {
                     {plan!.map((quarter, idx) => {
                         const meta = QUARTER_META[idx];
                         const isLast = idx === plan!.length - 1;
+                        const impact = impactStyles(quarter.estimated_impact);
                         return (
                             <div key={quarter.quarter} className="relative flex gap-5 sm:gap-7">
                                 <div className="flex flex-col items-center">
@@ -387,18 +392,47 @@ function DashboardView() {
                                             <span className="text-white/40 text-xs">·</span>
                                             <span className="text-white/40 text-xs font-medium uppercase tracking-wider">{meta.theme}</span>
                                         </div>
-                                        <span className="text-[10px] text-white/25 font-medium tabular-nums">
-                                            Months {(idx * 3) + 1}–{(idx + 1) * 3}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest ${impact.badge}`}>
+                                                {impact.label}
+                                            </span>
+                                            <span className="text-[10px] text-white/25 font-medium tabular-nums">
+                                                Months {(idx * 3) + 1}–{(idx + 1) * 3}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-3">
                                         <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1">Main Objective</p>
                                         <p className="text-white font-semibold text-sm leading-snug">{quarter.objective}</p>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/[0.06] pt-4">
-                                        <PlanRow label="Skill Focus" value={quarter.skill_focus} />
-                                        <PlanRow label="Suggested Project" value={quarter.project_suggestion} />
-                                        <PlanRow label="Career Positioning" value={quarter.career_positioning} />
+                                    <div className="rounded-xl border border-white/[0.06] bg-black/10 px-4 py-4 flex flex-col gap-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Why This Protects You</p>
+                                        <p className="text-sm text-white/78 leading-relaxed">{quarter.why_this_matters}</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4 border-t border-white/[0.06] pt-4">
+                                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4 flex flex-col gap-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Top Actions This Quarter</p>
+                                            <ul className="flex flex-col gap-2.5">
+                                                {quarter.top_actions.map((action, actionIndex) => (
+                                                    <li key={actionIndex} className="flex gap-3 items-start">
+                                                        <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-[10px] font-bold text-white/55">
+                                                            {actionIndex + 1}
+                                                        </span>
+                                                        <span className="text-sm text-white/82 leading-relaxed">{action}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                        <div className="flex flex-col gap-4">
+                                            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4 flex flex-col gap-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Measurable Outcome</p>
+                                                <p className="text-sm text-white/82 leading-relaxed">{quarter.measurable_outcome}</p>
+                                            </div>
+                                            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4 flex flex-col gap-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Positioning Move</p>
+                                                <p className="text-sm text-white/82 leading-relaxed">{quarter.career_positioning_move}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

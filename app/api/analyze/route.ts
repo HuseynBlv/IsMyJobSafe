@@ -1,7 +1,7 @@
 /**
  * POST /api/analyze
  *
- * Request body:  { "profile": "<raw profile text>" }
+ * Request body:  { "profile": "<raw profile text>", "targetRole"?: "<optional role focus>" }
  * Response body: { "success": true, "data": <AnalysisResult> }
  *             or { "success": false, "error": "<message>" }
  */
@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const profile = (body as { profile: string }).profile;
+    const payload = body as { profile: string; targetRole?: unknown };
+    const profile = payload.profile;
+    const targetRole =
+        typeof payload.targetRole === "string" && payload.targetRole.trim()
+            ? payload.targetRole.trim().slice(0, 120)
+            : null;
 
     // --- Run analysis pipeline ---
     const outcome = await analyzeProfile(profile);
@@ -63,6 +68,7 @@ export async function POST(request: NextRequest) {
         await connectDB();
         const analysisDoc = await Analysis.create({
             profileText: profile,
+            targetRole,
             result: outcome.data,
         });
         analysisId = analysisDoc._id.toString();
