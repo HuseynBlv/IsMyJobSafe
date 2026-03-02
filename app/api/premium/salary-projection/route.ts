@@ -53,10 +53,16 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = access.access.userKey;
+    const normalizedCountry = country.trim();
 
     await connectDB();
 
-    const existing = await SalaryProjection.findOne({ userId, analysisId }).lean();
+    const existing = await SalaryProjection.findOne({
+        userId,
+        analysisId,
+        salary,
+        country: normalizedCountry,
+    }).lean();
     if (existing) {
         return NextResponse.json({ success: true, scenarios: existing.projections, cached: true });
     }
@@ -79,7 +85,7 @@ export async function POST(request: NextRequest) {
                     role: "user",
                     content: buildSalaryProjectionUserPrompt(
                         salary,
-                        country.trim(),
+                        normalizedCountry,
                         result.replaceability_score,
                         result.automation_risk,
                         result.skill_defensibility_score,
@@ -122,15 +128,44 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        await SalaryProjection.create({
-            userId,
-            analysisId,
-            salary,
-            country: country.trim(),
-            projections: parsed.scenarios,
-        });
+        await SalaryProjection.findOneAndUpdate(
+            { userId, analysisId, salary, country: normalizedCountry },
+            {
+                $set: {
+                    userId,
+                    analysisId,
+                    salary,
+                    country: normalizedCountry,
+                    projections: parsed.scenarios,
+                },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
     } catch (dbError) {
-        console.error("[salary-projection] DB save error:", dbError);
+        if (
+            typeof dbError === "object" &&
+            dbError !== null &&
+            "code" in dbError &&
+            (dbError as { code?: number }).code === 11000
+        ) {
+            try {
+                await SalaryProjection.findOneAndUpdate(
+                    { userId, analysisId },
+                    {
+                        $set: {
+                            salary,
+                            country: normalizedCountry,
+                            projections: parsed.scenarios,
+                        },
+                    },
+                    { new: true }
+                );
+            } catch (fallbackError) {
+                console.error("[salary-projection] fallback DB save error:", fallbackError);
+            }
+        } else {
+            console.error("[salary-projection] DB save error:", dbError);
+        }
     }
 
     return NextResponse.json({ success: true, scenarios: parsed.scenarios, cached: false });

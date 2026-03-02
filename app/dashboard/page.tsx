@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useDeferredValue, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import dynamic from "next/dynamic";
-import type { SalaryScenario } from "@/components/SalaryChart";
+import type { SalaryControls, SalaryScenario } from "@/components/SalaryChart";
 
 // Recharts uses browser APIs — load client-side only
 const SalaryChart = dynamic(() => import("@/components/SalaryChart"), { ssr: false });
@@ -79,6 +79,14 @@ function DashboardView() {
     const [salaryError, setSalaryError] = useState<string | null>(null);
     const [scenarios, setScenarios] = useState<SalaryScenario[] | null>(null);
     const [salaryCached, setSalaryCached] = useState(false);
+    const [salaryBase, setSalaryBase] = useState<number | null>(null);
+    const [salaryControls, setSalaryControls] = useState<SalaryControls>({
+        salaryAnchor: 85_000,
+        marketOutlook: 0,
+        aiPressure: 50,
+        reskillingCommitment: 50,
+        promotionLift: 10,
+    });
 
     // AI Simulation state
     const [simulation, setSimulation] = useState<SimulationResult | null>(null);
@@ -94,6 +102,7 @@ function DashboardView() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const analysisId = searchParams.get("analysisId")?.trim() ?? "";
+    const deferredSalaryControls = useDeferredValue(salaryControls);
 
     // ── Load protection plan on mount ─────────────────────────────────────────
     useEffect(() => {
@@ -170,6 +179,14 @@ function DashboardView() {
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error ?? "Failed to generate projection.");
+            setSalaryBase(salaryNum);
+            setSalaryControls({
+                salaryAnchor: salaryNum,
+                marketOutlook: 0,
+                aiPressure: 50,
+                reskillingCommitment: 50,
+                promotionLift: 10,
+            });
             setScenarios(data.scenarios);
             setSalaryCached(data.cached);
         } catch (err) {
@@ -367,7 +384,7 @@ function DashboardView() {
                         <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 sm:p-6 flex flex-col gap-4">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                                 <p className="text-sm font-semibold text-white/70">
-                                    3-Year Salary Trajectory — {country}
+                                    Live Salary Trajectory — {country}
                                 </p>
                                 <div className="flex items-center gap-3">
                                     {salaryCached && (
@@ -376,14 +393,166 @@ function DashboardView() {
                                         </span>
                                     )}
                                     <button
-                                        onClick={() => { setScenarios(null); setSalary(""); }}
+                                        onClick={() => {
+                                            setScenarios(null);
+                                            setSalary("");
+                                            setSalaryBase(null);
+                                            setSalaryControls({
+                                                salaryAnchor: 85_000,
+                                                marketOutlook: 0,
+                                                aiPressure: 50,
+                                                reskillingCommitment: 50,
+                                                promotionLift: 10,
+                                            });
+                                        }}
                                         className="text-[11px] text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
                                     >
                                         Change inputs
                                     </button>
                                 </div>
                             </div>
-                            <SalaryChart scenarios={scenarios} />
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 rounded-2xl border border-white/[0.06] bg-black/10 p-4 sm:p-5">
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <label htmlFor="salary-anchor" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
+                                            Current Salary Anchor
+                                        </label>
+                                        <span className="text-xs font-semibold tabular-nums text-white/75">
+                                            ${Math.round(deferredSalaryControls.salaryAnchor).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="salary-anchor"
+                                        type="range"
+                                        min={Math.max(30_000, Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 0.5))}
+                                        max={Math.round((salaryBase ?? deferredSalaryControls.salaryAnchor) * 2)}
+                                        step={1000}
+                                        value={salaryControls.salaryAnchor}
+                                        onChange={(event) =>
+                                            setSalaryControls((current) => ({
+                                                ...current,
+                                                salaryAnchor: Number(event.target.value),
+                                            }))
+                                        }
+                                        className="range range-sm range-primary"
+                                    />
+                                    <p className="text-[11px] text-white/35">Quickly stress-test the model at different salary anchors without refetching.</p>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <label htmlFor="market-outlook" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
+                                            Market Outlook
+                                        </label>
+                                        <span className="text-xs font-semibold tabular-nums text-white/75">
+                                            {salaryControls.marketOutlook > 0 ? "+" : ""}{salaryControls.marketOutlook}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="market-outlook"
+                                        type="range"
+                                        min={-20}
+                                        max={20}
+                                        step={1}
+                                        value={salaryControls.marketOutlook}
+                                        onChange={(event) =>
+                                            setSalaryControls((current) => ({
+                                                ...current,
+                                                marketOutlook: Number(event.target.value),
+                                            }))
+                                        }
+                                        className="range range-sm range-info"
+                                    />
+                                    <p className="text-[11px] text-white/35">Move this for a colder or hotter hiring market.</p>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <label htmlFor="ai-pressure" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
+                                            AI Pressure
+                                        </label>
+                                        <span className="text-xs font-semibold tabular-nums text-white/75">
+                                            {salaryControls.aiPressure}/100
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="ai-pressure"
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        value={salaryControls.aiPressure}
+                                        onChange={(event) =>
+                                            setSalaryControls((current) => ({
+                                                ...current,
+                                                aiPressure: Number(event.target.value),
+                                            }))
+                                        }
+                                        className="range range-sm range-error"
+                                    />
+                                    <p className="text-[11px] text-white/35">Higher values compress the exposed paths faster.</p>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <label htmlFor="reskilling-commitment" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
+                                            Reskilling Commitment
+                                        </label>
+                                        <span className="text-xs font-semibold tabular-nums text-white/75">
+                                            {salaryControls.reskillingCommitment}/100
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="reskilling-commitment"
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        value={salaryControls.reskillingCommitment}
+                                        onChange={(event) =>
+                                            setSalaryControls((current) => ({
+                                                ...current,
+                                                reskillingCommitment: Number(event.target.value),
+                                            }))
+                                        }
+                                        className="range range-sm range-success"
+                                    />
+                                    <p className="text-[11px] text-white/35">Higher values boost the upskilling and pivot paths the most.</p>
+                                </div>
+
+                                <div className="flex flex-col gap-2 lg:col-span-2">
+                                    <div className="flex items-center justify-between">
+                                        <label htmlFor="promotion-lift" className="text-[10px] font-bold uppercase tracking-widest text-white/35">
+                                            Promotion Lift
+                                        </label>
+                                        <span className="text-xs font-semibold tabular-nums text-white/75">
+                                            +{salaryControls.promotionLift}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="promotion-lift"
+                                        type="range"
+                                        min={0}
+                                        max={30}
+                                        step={1}
+                                        value={salaryControls.promotionLift}
+                                        onChange={(event) =>
+                                            setSalaryControls((current) => ({
+                                                ...current,
+                                                promotionLift: Number(event.target.value),
+                                            }))
+                                        }
+                                        className="range range-sm range-warning"
+                                    />
+                                    <div className="flex items-center justify-between text-[11px] text-white/35">
+                                        <span>Slower promotion path</span>
+                                        <span>Faster promotion path</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <SalaryChart scenarios={scenarios} controls={deferredSalaryControls} />
                         </div>
                     )}
                 </div>
