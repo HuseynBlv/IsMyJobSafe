@@ -6,6 +6,11 @@ import { Report } from "@/models/Report";
 import { Subscription } from "@/models/Subscription";
 import { User } from "@/models/User";
 import { env } from "@/lib/env";
+import {
+    captureServerError,
+    trackFunnelEvent,
+    trackWebhookFailure,
+} from "@/lib/monitoring";
 
 interface LemonWebhookPayload {
     meta?: {
@@ -61,6 +66,9 @@ function normalizeEmail(payload: LemonWebhookPayload): string | null {
 
 export async function POST(request: NextRequest) {
     if (!env.LEMON_SQUEEZY_WEBHOOK_SECRET) {
+        await trackWebhookFailure("lemonsqueezy", "Webhook secret is not configured.", {
+            status: 500,
+        });
         return NextResponse.json(
             { success: false, error: "LEMON_SQUEEZY_WEBHOOK_SECRET is not configured." },
             { status: 500 }
@@ -69,6 +77,9 @@ export async function POST(request: NextRequest) {
 
     const signature = request.headers.get("x-signature");
     if (!signature) {
+        await trackWebhookFailure("lemonsqueezy", "Missing x-signature header.", {
+            status: 401,
+        });
         return NextResponse.json({ success: false, error: "Missing x-signature header." }, { status: 401 });
     }
 
@@ -76,10 +87,16 @@ export async function POST(request: NextRequest) {
     try {
         rawBody = await request.text();
     } catch {
+        await trackWebhookFailure("lemonsqueezy", "Unable to read webhook request body.", {
+            status: 400,
+        });
         return NextResponse.json({ success: false, error: "Unable to read request body." }, { status: 400 });
     }
 
     if (!verifySignature(rawBody, signature, env.LEMON_SQUEEZY_WEBHOOK_SECRET)) {
+        await trackWebhookFailure("lemonsqueezy", "Invalid webhook signature.", {
+            status: 401,
+        });
         return NextResponse.json({ success: false, error: "Invalid webhook signature." }, { status: 401 });
     }
 
@@ -87,6 +104,9 @@ export async function POST(request: NextRequest) {
     try {
         payload = JSON.parse(rawBody) as LemonWebhookPayload;
     } catch {
+        await trackWebhookFailure("lemonsqueezy", "Invalid JSON payload.", {
+            status: 400,
+        });
         return NextResponse.json({ success: false, error: "Invalid JSON payload." }, { status: 400 });
     }
 
@@ -94,6 +114,9 @@ export async function POST(request: NextRequest) {
     const email = normalizeEmail(payload);
 
     if (!eventName) {
+        await trackWebhookFailure("lemonsqueezy", "Missing event name.", {
+            status: 400,
+        });
         return NextResponse.json({ success: false, error: "Missing event name." }, { status: 400 });
     }
 
@@ -111,6 +134,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (!email) {
+        await trackWebhookFailure("lemonsqueezy", "Webhook payload missing a valid customer email.", {
+            eventName,
+            status: 400,
+        });
         return NextResponse.json(
             { success: false, error: "Webhook payload missing a valid customer email." },
             { status: 400 }
@@ -160,6 +187,11 @@ export async function POST(request: NextRequest) {
         if (eventName === "order_created") {
             const paymentId = lemonOrderId || lemonOrderIdentifier;
             if (!paymentId) {
+                await trackWebhookFailure("lemonsqueezy", "Missing payment identifier.", {
+                    eventName,
+                    email,
+                    status: 400,
+                });
                 return NextResponse.json(
                     { success: false, error: "Missing payment identifier." },
                     { status: 400 }
@@ -172,6 +204,12 @@ export async function POST(request: NextRequest) {
                 const userId = payload.meta?.custom_data?.user_id;
 
                 if (!analysisId || typeof analysisId !== "string") {
+                    await trackWebhookFailure("lemonsqueezy", "Missing analysis_id in webhook payload.", {
+                        eventName,
+                        email,
+                        paymentId,
+                        status: 400,
+                    });
                     return NextResponse.json(
                         { success: false, error: "Missing analysis_id in webhook payload." },
                         { status: 400 }
@@ -186,6 +224,13 @@ export async function POST(request: NextRequest) {
                     user = await User.findOne({ email }).select("_id email").lean();
                 }
                 if (!user) {
+                    await trackWebhookFailure("lemonsqueezy", "User account not found for this purchase.", {
+                        eventName,
+                        email,
+                        paymentId,
+                        analysisId,
+                        status: 404,
+                    });
                     return NextResponse.json(
                         { success: false, error: "User account not found for this purchase." },
                         { status: 404 }
@@ -197,6 +242,13 @@ export async function POST(request: NextRequest) {
                     .lean();
 
                 if (!analysis) {
+                    await trackWebhookFailure("lemonsqueezy", "Source analysis not found.", {
+                        eventName,
+                        email,
+                        paymentId,
+                        analysisId,
+                        status: 404,
+                    });
                     return NextResponse.json(
                         { success: false, error: "Source analysis not found." },
                         { status: 404 }
@@ -211,6 +263,12 @@ export async function POST(request: NextRequest) {
                     paymentId,
                 });
             }
+
+            await trackFunnelEvent("checkout_completed", {
+                analysisId: payload.meta?.custom_data?.analysis_id,
+                paymentId,
+                provider: "lemonsqueezy",
+            });
         }
 
         await Subscription.findOneAndUpdate(
@@ -232,6 +290,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, event: eventName, email });
     } catch (error) {
         console.error("[Lemon Squeezy Webhook] Error processing event:", error);
+        await trackWebhookFailure("lemonsqueezy", "Internal server error while processing webhook.", {
+            eventName,
+            email,
+            status: 500,
+        });
+        await captureServerError("lemonsqueezy_webhook_processing_failed", error, {
+            eventName,
+            email,
+        });
         return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
     }
 }

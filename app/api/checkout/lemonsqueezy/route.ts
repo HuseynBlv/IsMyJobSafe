@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { captureServerError, trackFunnelEvent } from "@/lib/monitoring";
 
 interface CreateCheckoutRequestBody {
     analysisId?: string;
@@ -60,10 +61,20 @@ export async function POST(request: NextRequest) {
         );
     }
 
+    await trackFunnelEvent("checkout_started", {
+        analysisId,
+        userId: user.id,
+        provider: "lemonsqueezy",
+    });
+
     let config: ReturnType<typeof requireLemonConfig>;
     try {
         config = requireLemonConfig();
     } catch (error) {
+        await captureServerError("checkout_config_missing", error, {
+            analysisId,
+            userId: user.id,
+        });
         return NextResponse.json(
             {
                 success: false,
@@ -130,6 +141,11 @@ export async function POST(request: NextRequest) {
             cache: "no-store",
         });
     } catch (error) {
+        await captureServerError("checkout_provider_request_failed", error, {
+            analysisId,
+            userId: user.id,
+            provider: "lemonsqueezy",
+        });
         return NextResponse.json(
             {
                 success: false,
@@ -161,6 +177,13 @@ export async function POST(request: NextRequest) {
                     .join("; ") || "Checkout creation failed.")
                 : "Checkout creation failed.";
 
+        await captureServerError("checkout_provider_rejected", message, {
+            analysisId,
+            userId: user.id,
+            provider: "lemonsqueezy",
+            status: lsRes.status,
+        });
+
         return NextResponse.json({ success: false, error: message }, { status: 502 });
     }
 
@@ -170,6 +193,11 @@ export async function POST(request: NextRequest) {
         })?.data?.attributes?.url;
 
     if (!checkoutUrl) {
+        await captureServerError("checkout_url_missing", "Lemon Squeezy checkout URL missing in response.", {
+            analysisId,
+            userId: user.id,
+            provider: "lemonsqueezy",
+        });
         return NextResponse.json(
             { success: false, error: "Lemon Squeezy checkout URL missing in response." },
             { status: 502 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Subscription } from "@/models/Subscription";
+import { captureServerError, trackWebhookFailure } from "@/lib/monitoring";
 
 export async function POST(req: NextRequest) {
     try {
@@ -12,6 +13,9 @@ export async function POST(req: NextRequest) {
         // Optionally, check short_product_id if you want to verify it's the right product.
 
         if (!email || !sale_id) {
+            await trackWebhookFailure("gumroad", "Missing email or sale_id.", {
+                status: 400,
+            });
             return NextResponse.json({ error: "Missing email or sale_id" }, { status: 400 });
         }
 
@@ -40,6 +44,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, message: "Subscription activated" });
     } catch (error) {
         console.error("[Gumroad Webhook] Error processing request:", error);
+        await trackWebhookFailure("gumroad", "Internal server error while processing webhook.", {
+            status: 500,
+        });
+        await captureServerError("gumroad_webhook_processing_failed", error, {
+            provider: "gumroad",
+        });
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

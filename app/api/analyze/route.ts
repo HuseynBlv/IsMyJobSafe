@@ -11,6 +11,7 @@ import { analyzeProfile } from "@/services/analysis.service";
 import { connectDB } from "@/lib/db";
 import { Analysis } from "@/models/Analysis";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { captureServerError, trackFunnelEvent } from "@/lib/monitoring";
 
 export async function POST(request: NextRequest) {
     const rateLimitResponse = await enforceRateLimit(request, {
@@ -55,6 +56,11 @@ export async function POST(request: NextRequest) {
             ? payload.targetRole.trim().slice(0, 120)
             : null;
 
+    await trackFunnelEvent("analysis_started", {
+        hasTargetRole: Boolean(targetRole),
+        profileLength: profile.length,
+    });
+
     // --- Run analysis pipeline ---
     const outcome = await analyzeProfile(profile);
 
@@ -65,6 +71,12 @@ export async function POST(request: NextRequest) {
                 : outcome.code === "VALIDATION_ERROR" || outcome.code === "PARSE_ERROR"
                     ? 422
                     : 502;
+
+        if (statusCode >= 500) {
+            await captureServerError("analyze_profile_failed", outcome.error, {
+                code: outcome.code,
+            });
+        }
 
         return NextResponse.json(
             { success: false, error: outcome.error },
@@ -84,6 +96,9 @@ export async function POST(request: NextRequest) {
         analysisId = analysisDoc._id.toString();
     } catch (dbError) {
         console.error("[analyze] Failed to save analysis to DB:", dbError);
+        await captureServerError("analyze_save_failed", dbError, {
+            hasTargetRole: Boolean(targetRole),
+        });
         return NextResponse.json(
             {
                 success: false,
@@ -92,6 +107,11 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
+
+    await trackFunnelEvent("analysis_completed", {
+        analysisId,
+        hasTargetRole: Boolean(targetRole),
+    });
 
     return NextResponse.json({ success: true, data: outcome.data, analysisId }, { status: 200 });
 }
