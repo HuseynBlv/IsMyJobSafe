@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import PDFParser from "pdf2json";
 
-interface PdfParserErrorPayload {
-    parserError?: unknown;
-}
+type PdfParserError = Error | { parserError: Error };
 
 type PdfParserWithRawText = PDFParser & {
     getRawTextContent(): string;
@@ -30,9 +28,14 @@ export async function POST(req: NextRequest) {
             const pdfParser = new PDFParser(null, true);
             const parserWithRawText = pdfParser as PdfParserWithRawText;
 
-            pdfParser.on("pdfParser_dataError", (errData: PdfParserErrorPayload) =>
-                reject(errData.parserError ?? errData)
-            );
+            pdfParser.on("pdfParser_dataError", (errData: PdfParserError) => {
+                if (errData instanceof Error) {
+                    reject(errData);
+                    return;
+                }
+
+                reject(errData.parserError);
+            });
             pdfParser.on("pdfParser_dataReady", () => {
                 const rawText = parserWithRawText.getRawTextContent();
                 resolve(rawText);
