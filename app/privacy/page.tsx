@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
     title: "Privacy Policy | IsMyJobSafe",
@@ -8,6 +9,15 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
     return (
         <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">
+            <div>
+                <Link
+                    href="/"
+                    className="inline-flex items-center rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                    Back Home
+                </Link>
+            </div>
+
             <section className="space-y-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-300">
                     Privacy Policy
