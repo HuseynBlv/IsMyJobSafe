@@ -7,7 +7,6 @@ import mongoose from "mongoose";
 import { env } from "./env";
 
 declare global {
-    // eslint-disable-next-line no-var
     var _mongooseConn: mongoose.Connection | undefined;
 }
 

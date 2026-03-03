@@ -1,43 +1,43 @@
-![Next.js](https://img.shields.io/badge/Next.js-13-black)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)
 ![Vercel](https://img.shields.io/badge/Deployed-Vercel-black)
-![AI Powered](https://img.shields.io/badge/AI-Groq-blue)
+![AI Powered](https://img.shields.io/badge/AI-Anthropic%20%7C%20Groq-blue)
 
 # IsMyJobSafe
 
-AI-powered career resilience platform that analyzes LinkedIn profiles and CVs to evaluate automation risk, replaceability score, and long-term salary growth projections.
+AI-powered career resilience platform that analyzes LinkedIn profiles and resumes to evaluate automation risk, replaceability score, and career defensibility.
 
-Built as a full-stack SaaS application with subscription billing and AI-driven structured analysis.
+Built as a full-stack SaaS application with one-time premium report unlocks and AI-driven structured analysis.
 
 ---
 
-## 🌍 Live Demo
+## Live Demo
 
 🔗 https://is-my-job-safe.vercel.app
 
 ---
 
-## 🧠 What It Does
+## What It Does
 
 IsMyJobSafe helps professionals understand:
 
-- 📉 Automation Risk Score  
-- 🔁 Replaceability Index  
-- 🛡 Skill Defensibility Score  
-- 📈 Salary Growth Projections (1-year & 3-year scenarios)  
-- 🚀 Strategic Upskilling Roadmap  
+- Automation Risk Score
+- Replaceability Index
+- Skill Defensibility Score
+- Market Saturation
+- Strategic Upskilling Recommendations
 
-Users paste their LinkedIn profile or CV, and the platform generates structured AI insights about their career trajectory.
+Users paste their LinkedIn profile text or resume text, and the platform generates structured AI insights about their career trajectory.
 
 ---
 
-## 💎 Premium Features
+## Premium Features
 
 - 12-Month Career Protection Plan
 - Salary Growth Projection Modeling
 - AI Exposure Simulation
 - Recruiter Market Comparison
-- Subscription-based access control
+- One-time premium report unlock tied to the analyzed report
 
 ---
 
@@ -52,10 +52,12 @@ Users paste their LinkedIn profile or CV, and the platform generates structured 
 ### Backend
 - Next.js API Routes
 - MongoDB Atlas
-- Groq LLM (AI inference)
+- Mongoose
+- Anthropic by default, with optional Groq provider support
 
 ### Payments
-- to do (have some problemds with Paddle)
+- Lemon Squeezy checkout + webhook handling
+- Legacy Gumroad webhook support still exists in the codebase
 
 ### Hosting
 - Vercel
@@ -66,20 +68,23 @@ Users paste their LinkedIn profile or CV, and the platform generates structured 
 
 - AI analysis runs server-side
 - Structured JSON responses from LLM
-- Results cached in MongoDB
-- Subscription access enforced via webhook events
+- Analyses and premium reports are stored in MongoDB
+- Report ownership is enforced via authenticated route handlers and webhook-confirmed purchases
 - Serverless deployment
 
----
-
-## 🔐 Environment Variables
+## Environment Variables
 
 Create a `.env.local` file:
 
-PADDLE_API_KEY=
-PADDLE_PRICE_ID=
+ANTHROPIC_API_KEY=
+MONGODB_URI=
+JWT_SECRET=
 
-# LemonSqueezy Billing (Client-side)
+# Optional LLM provider override
+LLM_PROVIDER=anthropic
+GROQ_API_KEY=
+
+# Lemon Squeezy billing
 LEMON_SQUEEZY_API_KEY=
 LEMON_SQUEEZY_STORE_ID=
 LEMON_SQUEEZY_VARIANT_ID=
@@ -87,11 +92,5 @@ LEMON_SQUEEZY_WEBHOOK_SECRET=
 LEMON_SQUEEZY_SUCCESS_URL=
 LEMON_SQUEEZY_CHECKOUT_TEST_MODE=
 
-# JWT 
-JWT_SECRET=
-
-# LLM Provider (anthropic | groq)
-LLM_PROVIDER=groq
-GROQ_API_KEY=
-
-
+# Optional for local tunnel development (used by next.config.ts)
+DEV_TUNNEL_HOST=

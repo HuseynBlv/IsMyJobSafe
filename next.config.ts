@@ -1,9 +1,16 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  // Allow ngrok URL to load React assets during development
-  // @ts-ignore - allowedDevOrigins is missing from NextConfig type in this version
-  allowedDevOrigins: ["tiresome-hypereutectoid-bonny.ngrok-free.dev", "localhost:3000"],
+const allowedDevOrigins = ["localhost:3000"];
+const devTunnelHost = process.env.DEV_TUNNEL_HOST?.trim();
+
+if (devTunnelHost) {
+  allowedDevOrigins.unshift(devTunnelHost);
+}
+
+const nextConfig = {
+  allowedDevOrigins,
+} satisfies NextConfig & {
+  allowedDevOrigins: string[];
 };
 
 export default nextConfig;
