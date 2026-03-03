@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { RateLimitBucket } from "@/models/RateLimitBucket";
 
 interface RateLimitOptions {
     keyPrefix: string;
@@ -6,20 +8,7 @@ interface RateLimitOptions {
     windowMs: number;
 }
 
-interface RateLimitEntry {
-    count: number;
-    resetAt: number;
-}
-
-declare global {
-    var _rateLimitStore: Map<string, RateLimitEntry> | undefined;
-}
-
-const rateLimitStore = global._rateLimitStore ?? new Map<string, RateLimitEntry>();
-
-if (!global._rateLimitStore) {
-    global._rateLimitStore = rateLimitStore;
-}
+const TTL_BUFFER_MS = 60_000;
 
 function getClientIp(request: NextRequest): string {
     const forwardedFor = request.headers.get("x-forwarded-for");
@@ -38,37 +27,43 @@ function getClientIp(request: NextRequest): string {
     return "unknown";
 }
 
-function cleanupExpiredEntries(now: number) {
-    for (const [key, entry] of rateLimitStore.entries()) {
-        if (entry.resetAt <= now) {
-            rateLimitStore.delete(key);
-        }
-    }
-}
-
-export function enforceRateLimit(
+export async function enforceRateLimit(
     request: NextRequest,
     options: RateLimitOptions
-): NextResponse | null {
+): Promise<NextResponse | null> {
     const now = Date.now();
-    cleanupExpiredEntries(now);
-
     const clientIp = getClientIp(request);
     const bucketKey = `${options.keyPrefix}:${clientIp}`;
-    const existing = rateLimitStore.get(bucketKey);
+    const windowStart = Math.floor(now / options.windowMs) * options.windowMs;
+    const resetAt = windowStart + options.windowMs;
 
-    if (!existing || existing.resetAt <= now) {
-        rateLimitStore.set(bucketKey, {
-            count: 1,
-            resetAt: now + options.windowMs,
-        });
+    await connectDB();
+
+    const bucket = await RateLimitBucket.findOneAndUpdate(
+        { key: bucketKey, windowStart },
+        {
+            $inc: { count: 1 },
+            $setOnInsert: {
+                key: bucketKey,
+                windowStart,
+                expiresAt: new Date(resetAt + TTL_BUFFER_MS),
+            },
+        },
+        {
+            upsert: true,
+            new: true,
+            setDefaultsOnInsert: true,
+        }
+    ).lean<{ count: number } | null>();
+
+    if (!bucket) {
         return null;
     }
 
-    if (existing.count >= options.limit) {
+    if (bucket.count > options.limit) {
         const retryAfterSeconds = Math.max(
             1,
-            Math.ceil((existing.resetAt - now) / 1000)
+            Math.ceil((resetAt - now) / 1000)
         );
         const response = NextResponse.json(
             {
@@ -82,7 +77,5 @@ export function enforceRateLimit(
         return response;
     }
 
-    existing.count += 1;
-    rateLimitStore.set(bucketKey, existing);
     return null;
 }

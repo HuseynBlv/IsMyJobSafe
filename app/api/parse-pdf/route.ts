@@ -9,7 +9,7 @@ type PdfParserWithRawText = PDFParser & {
 };
 
 export async function POST(req: NextRequest) {
-    const rateLimitResponse = enforceRateLimit(req, {
+    const rateLimitResponse = await enforceRateLimit(req, {
         keyPrefix: "parse-pdf",
         limit: 5,
         windowMs: 60_000,

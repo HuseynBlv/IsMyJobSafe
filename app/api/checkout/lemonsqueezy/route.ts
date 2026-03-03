@@ -25,7 +25,7 @@ function requireLemonConfig() {
 }
 
 export async function POST(request: NextRequest) {
-    const rateLimitResponse = enforceRateLimit(request, {
+    const rateLimitResponse = await enforceRateLimit(request, {
         keyPrefix: "checkout-lemonsqueezy",
         limit: 6,
         windowMs: 60_000,

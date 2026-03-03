@@ -13,7 +13,7 @@ import { Analysis } from "@/models/Analysis";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
-    const rateLimitResponse = enforceRateLimit(request, {
+    const rateLimitResponse = await enforceRateLimit(request, {
         keyPrefix: "analyze",
         limit: 8,
         windowMs: 60_000,

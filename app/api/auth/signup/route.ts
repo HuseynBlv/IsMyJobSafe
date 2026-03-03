@@ -15,7 +15,7 @@ function normalizeEmail(value?: string) {
 }
 
 export async function POST(request: NextRequest) {
-    const rateLimitResponse = enforceRateLimit(request, {
+    const rateLimitResponse = await enforceRateLimit(request, {
         keyPrefix: "auth-signup",
         limit: 5,
         windowMs: 60_000,
