@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { setSessionCookie, verifyPassword } from "@/lib/auth";
 import { User } from "@/models/User";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 interface AuthBody {
     email?: string;
@@ -14,6 +15,15 @@ function normalizeEmail(value?: string) {
 }
 
 export async function POST(request: NextRequest) {
+    const rateLimitResponse = enforceRateLimit(request, {
+        keyPrefix: "auth-login",
+        limit: 10,
+        windowMs: 60_000,
+    });
+    if (rateLimitResponse) {
+        return rateLimitResponse;
+    }
+
     let body: AuthBody;
     try {
         body = (await request.json()) as AuthBody;

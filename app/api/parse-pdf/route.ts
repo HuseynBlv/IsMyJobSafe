@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import PDFParser from "pdf2json";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 type PdfParserError = Error | { parserError: Error };
 
@@ -8,6 +9,15 @@ type PdfParserWithRawText = PDFParser & {
 };
 
 export async function POST(req: NextRequest) {
+    const rateLimitResponse = enforceRateLimit(req, {
+        keyPrefix: "parse-pdf",
+        limit: 5,
+        windowMs: 60_000,
+    });
+    if (rateLimitResponse) {
+        return rateLimitResponse;
+    }
+
     try {
         const formData = await req.formData();
         const file = formData.get("file") as File | null;

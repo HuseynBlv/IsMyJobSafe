@@ -10,8 +10,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeProfile } from "@/services/analysis.service";
 import { connectDB } from "@/lib/db";
 import { Analysis } from "@/models/Analysis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
+    const rateLimitResponse = enforceRateLimit(request, {
+        keyPrefix: "analyze",
+        limit: 8,
+        windowMs: 60_000,
+    });
+    if (rateLimitResponse) {
+        return rateLimitResponse;
+    }
+
     // --- Parse request body ---
     let body: unknown;
     try {

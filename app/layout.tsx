@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,7 +18,22 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" data-theme="dark">
-      <body className="antialiased">{children}</body>
+      <body className="flex min-h-dvh flex-col antialiased">
+        <div className="flex-1">{children}</div>
+        <footer className="border-t border-[var(--border)] px-4 py-5 sm:px-6">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 text-sm text-white/50 sm:flex-row sm:items-center sm:justify-between">
+            <p>AI-generated career analysis for informational use only.</p>
+            <nav className="flex items-center gap-4">
+              <Link href="/privacy" className="transition hover:text-white">
+                Privacy
+              </Link>
+              <Link href="/terms" className="transition hover:text-white">
+                Terms
+              </Link>
+            </nav>
+          </div>
+        </footer>
+      </body>
     </html>
   );
 }

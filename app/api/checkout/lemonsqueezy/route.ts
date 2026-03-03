@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { env } from "@/lib/env";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 interface CreateCheckoutRequestBody {
     analysisId?: string;
@@ -24,6 +25,15 @@ function requireLemonConfig() {
 }
 
 export async function POST(request: NextRequest) {
+    const rateLimitResponse = enforceRateLimit(request, {
+        keyPrefix: "checkout-lemonsqueezy",
+        limit: 6,
+        windowMs: 60_000,
+    });
+    if (rateLimitResponse) {
+        return rateLimitResponse;
+    }
+
     const user = await getCurrentUserFromRequest(request);
     if (!user) {
         return NextResponse.json(
