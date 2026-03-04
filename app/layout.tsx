@@ -24,6 +24,9 @@ export default function RootLayout({
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 text-sm text-white/50 sm:flex-row sm:items-center sm:justify-between">
             <p>AI-generated career analysis for informational use only.</p>
             <nav className="flex items-center gap-4">
+              <Link href="/contact" className="transition hover:text-white">
+                Contact
+              </Link>
               <Link href="/privacy" className="transition hover:text-white">
                 Privacy
               </Link>
