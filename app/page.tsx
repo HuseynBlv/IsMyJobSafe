@@ -4,11 +4,20 @@ import { useState, useRef, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
+const MAX_PDF_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
 const PLACEHOLDER = `Senior Backend Engineer at Acme Corp
 Led API development for payment processing platform (3M+ daily transactions)
 Improved system performance by 40% through query optimisation
 Managed team of 4 engineers, defined technical roadmap
 Stack: Python, PostgreSQL, Redis, AWS`;
+
+interface ParsePdfResponse {
+  success: boolean;
+  text?: string;
+  error?: string;
+  code?: string;
+}
 
 export default function Home() {
   const [profile, setProfile] = useState("");
@@ -63,7 +72,20 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+    const isPdfByName = file.name.toLowerCase().endsWith(".pdf");
+    if (isPdfByName) {
+      if (file.type !== "application/pdf") {
+        setError("Unsupported PDF type. Please export your resume as a standard PDF file.");
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+
+      if (file.size > MAX_PDF_FILE_SIZE_BYTES) {
+        setError("PDF is too large. Maximum allowed size is 5 MB.");
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {
@@ -75,20 +97,32 @@ export default function Home() {
           body: formData,
         });
 
-        const json = await res.json();
+        const json = (await res.json()) as ParsePdfResponse;
         if (!res.ok || !json.success) {
-          setError(json.error ?? "Failed to extract text from PDF.");
+          setError(
+            json.error ??
+              "Could not read this PDF. Try a text-based PDF or paste your resume manually."
+          );
           return;
         }
 
-        setProfile(json.text);
+        setProfile(json.text ?? "");
       } catch {
         setError("Network error parsing PDF. Please try again.");
       } finally {
         setLoading(false);
       }
     } else {
-      // Fallback for txt/md
+      // Fallback for plain text files
+      const isTextFile =
+        file.type.startsWith("text/") || /\.(txt|md)$/i.test(file.name);
+
+      if (!isTextFile) {
+        setError("Unsupported file type. Upload a PDF, TXT, or MD file.");
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (ev) => {
         const text = ev.target?.result;
